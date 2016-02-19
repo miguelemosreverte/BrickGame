@@ -355,7 +355,7 @@ void UBrickGridComponent::ReadRegionLakes(FBrickRegion& RegionToRead)
 		}
 	}
 }
-bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& RegionToRead, int &BrickCoordinates, FBrickRegion::LakeSlice &LakeSliceToRead)
+bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& RegionToRead, int &LakeIndex, FBrickRegion::LakeSlice &LakeSliceToRead)
 {
 	if (RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.Num() == 0)
 	{
@@ -363,7 +363,7 @@ bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& Regio
 	}
 	else
 	{
-		int LakeIndex = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[BrickCoordinates];
+		LakeIndex = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[LakeIndex];
 		if (LakeIndex != 0)//CHANGE 0 to -1
 		{
 			std::ostringstream X, Y, Z;
@@ -741,8 +741,6 @@ void UBrickGridComponent::CreateLakeB(FBrickRegion& RegionToRead, int32 LakeInde
 	FBrickRegion::LakeSlice LakeToFlood;
 	if (FromBrickCoordinatesFindRegionLake(RegionToRead, LakeIndex, LakeToFlood))
 	{
-		UE_LOG(LogStats, Log, TEXT("Real LakeIndex was %d"), LakeIndex);
-
 		RegionAndLakeIndexCombo ThisRegionAndLakeIndexCombo;
 		ThisRegionAndLakeIndexCombo.RegionCoordinates = RegionToRead.Coordinates;
 		ThisRegionAndLakeIndexCombo.LakeIndex = LakeIndex;

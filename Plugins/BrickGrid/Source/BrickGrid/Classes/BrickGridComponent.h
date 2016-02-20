@@ -358,6 +358,7 @@ private:
 			return A.RegionCoordinates == B.RegionCoordinates && A.LakeIndex == B.LakeIndex;
 		}
 	};
+
 	TArray<RegionAndLakeIndexCombo>ListOfVisitedRegionAndLakeIndexCombos;
 
 	// Transient maps to help lookup regions and chunks by coordinates.
@@ -404,6 +405,8 @@ private:
 	void SaveRegionLakes(FBrickRegion& RegionToRead);
 	void FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32>&ListOfLakeIndexesReadyToBeFlooded, TArray<FInt3> &BrickCoordinatesArray);
 	void FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, FString FrontierSide, TArray<FInt3> &BrickCoordinates);
+
+	void InvalidateChunkComponents_OnlyRender(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates);
 	/*
 
 	void IsThereALakeToFloodOverTheOtherSideOfTheRegionFrontier(FBrickRegion& RegionToReadFString, FString FrontierSide, FInt3 &BrickCoordinates);

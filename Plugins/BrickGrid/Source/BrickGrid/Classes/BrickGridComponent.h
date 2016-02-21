@@ -163,7 +163,7 @@ struct FBrickRegion
 		FInt3 Coordinates;
 		int32 Volume = 0;//number of blocks contained by lake
 		int32 DownwardsFlux = 0;//number of blocks contained by DownwardWater
-		int32 RegionPressure = 0;
+		int32 Pressure = 1;
 		TArray<int32>DownwardWater;
 		TArray<int32> LakeBricks;
 		TArray<int32> LakeFrontier;
@@ -406,7 +406,7 @@ private:
 	void IsThereALakeToFloodOverTheOtherSideOfTheRegionFrontier(FBrickRegion& RegionToReadFString, FString FrontierSide, FInt3 &BrickCoordinates);
 	void FindAllLakesThatCanBeFloodedFromALakeFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32>&ListOfLakeIndexesReadyToBeFlooded, TArray<FInt3> &BrickCoordinatesArray);
 	*/
-	void CreateLake(FBrickRegion& RegionToRead, int32 BrickIndex);
+	void CreateLake(FBrickRegion& RegionToRead, int32 BrickIndex, int32 Pressure);
 	// Saves a copy on disk of the grid's brick data.	
 	void SaveRegion(FBrickRegion& RegionToSave);
 

@@ -17,7 +17,7 @@ static const uint8 FaceVertices[6][4] =
 	{ 4, 5, 7, 6 },		// +X
 	{ 0, 1, 5, 4 },		// -Y
 	{ 6, 7, 3, 2 },		// +Y
-	{ 4, 6, 2, 0 },		// -Z
+	{ 4, 6, 2, 0 },	// -Z
 	{ 1, 3, 7, 5 }		// +Z
 };
 // Maps face index to normal.
@@ -32,7 +32,7 @@ static const FInt3 FaceNormals[6] =
 };
 
 /**	An element of the vertex buffer given to the GPU by the CPU brick tessellator.
-	8-bit coordinates are used for efficiency. */
+8-bit coordinates are used for efficiency. */
 struct FBrickVertex
 {
 	uint8 X;
@@ -458,25 +458,6 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][FaceVertexIndex]);
 										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
 										FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
-
-
-										if (FaceIndex == 0 && (FaceVertexIndex == 0 || FaceVertexIndex == 3))//4 and 5 are down and up
-										{
-											const uint32 Under_FacingLocalBrickIndex = (FacingLocalBrickY * LocalBricksDim.X + FacingLocalBrickX) * LocalBricksDim.Z + FacingLocalBrickZ - 1;
-											const uint32 Under_FrontBrickMaterial = LocalBrickMaterials[Under_FacingLocalBrickIndex];
-											if (Under_FrontBrickMaterial != EmptyMaterialIndex)
-											{
-
-												const FInt3 Under_FacingLocalBrick_RelativeBrickCoordinates = FInt3(FacingLocalBrickX, FacingLocalBrickY, FacingLocalBrickZ - 1) - LocalBrickExpansion;
-												const FInt3 Under_FacingLocalBrick_LocalVertexCoordinates = Under_FacingLocalBrick_RelativeBrickCoordinates + CornerVertexOffset;
-												int value = (Under_FacingLocalBrick_LocalVertexCoordinates.Y * LocalVertexDim.X + Under_FacingLocalBrick_LocalVertexCoordinates.X) * LocalVertexDim.Z + Under_FacingLocalBrick_LocalVertexCoordinates.Z;
-												//UE_LOG(LogStats, Log, TEXT("LALALA: %u %u %u"), Under_FacingLocalBrick_LocalVertexCoordinates.Y, Under_FacingLocalBrick_LocalVertexCoordinates.X, Under_FacingLocalBrick_LocalVertexCoordinates.Z);
-												//UE_LOG(LogStats, Log, TEXT("value: %u"), value);
-												if (value > 0 && value < 140481)
-													FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[value];
-											}
-										}
-
 									}
 
 									// Write the indices for the brick face.

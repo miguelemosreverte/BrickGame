@@ -106,7 +106,6 @@ bool UBrickGridComponent::ReadRegionUncompressed(FBrickRegion& RegionToRead)
 
 	FFileHelper::LoadFileToArray(UncompressedBinaryArray, *title);
 	RegionToRead.BrickContents = UncompressedBinaryArray;
-	//CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFlux(RegionToRead);
 	ReadRegionLakes(RegionToRead);
 	UpdateMaxNonEmptyBrickMap(RegionToRead, FInt3::Scalar(0), BricksPerRegion - FInt3::Scalar(1));
 	return true;
@@ -124,7 +123,7 @@ void UBrickGridComponent::CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFl
 		DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[iterator] = -1;
 
 	FBrickRegion::LakeSlice LakeSlice;
-	for (int32 LocalZ = 0; LocalZ < BricksPerRegion.Z; ++LocalZ)
+	for (int32 LocalZ = BricksPerRegion.Z - 1; LocalZ >= 0; --LocalZ)
 	{
 		for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
 		{
@@ -191,7 +190,10 @@ void UBrickGridComponent::CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFl
 							}
 						}
 						else
-							LakeSlice.BricksOnTheRegionFrontierAtX.Add(BrickIndex);
+						{
+							int32 ModifiedBrickIndex = ((LakeCoordinates.Y * BricksPerRegion.X) + 0) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtX.Add(ModifiedBrickIndex);
+						}
 						if (LakeCoordinates.X > 0 + 1)
 						{
 							if (!VisitedBrickIndexes[NeighboorBrickAtMinusXIndex])
@@ -204,7 +206,10 @@ void UBrickGridComponent::CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFl
 							}
 						}
 						else if (LakeCoordinates.X == 0)
-							LakeSlice.BricksOnTheRegionFrontierAtMinusX.Add(BrickIndex);
+						{
+							int32 ModifiedBrickIndex = ((LakeCoordinates.Y * BricksPerRegion.X) + BricksPerRegion.X - 1) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtMinusX.Add(ModifiedBrickIndex);
+						}
 						if (LakeCoordinates.Y < BricksPerRegion.Y - 1)
 						{
 							if (!VisitedBrickIndexes[NeighboorBrickAtYIndex])
@@ -218,7 +223,10 @@ void UBrickGridComponent::CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFl
 							}
 						}
 						else
-							LakeSlice.BricksOnTheRegionFrontierAtY.Add(BrickIndex);
+						{
+							int32 ModifiedBrickIndex = ((0 * BricksPerRegion.X) + LakeCoordinates.X) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtY.Add(ModifiedBrickIndex);
+						}
 						if (LakeCoordinates.Y > 0 + 1)
 						{
 							if (!VisitedBrickIndexes[NeighboorBrickAtMinusYIndex])
@@ -231,7 +239,10 @@ void UBrickGridComponent::CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFl
 							}
 						}
 						else if (LakeCoordinates.Y == 0)
-							LakeSlice.BricksOnTheRegionFrontierAtMinusY.Add(BrickIndex);
+						{
+							int32 ModifiedBrickIndex = (((BricksPerRegion.Y - 1) * BricksPerRegion.X) + LakeCoordinates.X) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtMinusY.Add(ModifiedBrickIndex);
+						}
 					}// END OF BFS
 
 
@@ -294,6 +305,7 @@ void UBrickGridComponent::FromBrickCoordinatesSaveRegionLake(FBrickRegion& Regio
 	FString += FString::FromInt(LakeSliceToSave.Coordinates.X) + "\r\n";
 	FString += FString::FromInt(LakeSliceToSave.Coordinates.Y) + "\r\n";
 	FString += FString::FromInt(LakeSliceToSave.Coordinates.Z) + "\r\n";
+	FString += FString::FromInt(LakeSliceToSave.RegionPressure) + "\r\n";
 	for (int iterator = 0; iterator < LakeSliceToSave.LakeBricks.Num(); iterator++)
 	{
 		FString += FString::FromInt(LakeSliceToSave.LakeBricks[iterator]) + "\r\n";
@@ -343,21 +355,19 @@ void UBrickGridComponent::ReadRegionLakes(FBrickRegion& RegionToRead)
 	title += ".txt";
 	if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*title))
 	{
-		//CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFlux(RegionToRead);
+		CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFlux(RegionToRead);
 	}
-	else
-	{
-		TArray <FString> lines;
-		FFileHelper::LoadANSITextFileToStrings(*title, NULL, lines);
+	TArray <FString> lines;
+	FFileHelper::LoadANSITextFileToStrings(*title, NULL, lines);
 
-		UE_LOG(LogStats, Log, TEXT("RegionToRead %d %d %d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
-		
-		for (int iterator = 0; iterator < lines.Num(); iterator++)
-		{
-			if (iterator < (BricksPerRegion.X * BricksPerRegion.Y * BricksPerRegion.Z))// always less than 131072
-				RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.Add(FCString::Atoi(*lines[iterator]));
-		}
+	UE_LOG(LogStats, Log, TEXT("RegionToRead %d %d %d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
+
+	for (int iterator = 0; iterator < lines.Num(); iterator++)
+	{
+		if (iterator < (BricksPerRegion.X * BricksPerRegion.Y * BricksPerRegion.Z))// always less than 131072
+			RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.Add(FCString::Atoi(*lines[iterator]));
 	}
+
 }
 bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& RegionToRead, int &LakeIndex, FBrickRegion::LakeSlice &LakeSliceToRead)
 {
@@ -393,6 +403,7 @@ bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& Regio
 			LakeSliceToRead.Coordinates.X = FCString::Atoi(*LinesOfText[2]);
 			LakeSliceToRead.Coordinates.Y = FCString::Atoi(*LinesOfText[3]);
 			LakeSliceToRead.Coordinates.Z = FCString::Atoi(*LinesOfText[4]);
+			LakeSliceToRead.RegionPressure = FCString::Atoi(*LinesOfText[5]);
 
 			bool LakeBricks = true;
 			bool BricksOnTheRegionFrontierAtX = false;
@@ -401,10 +412,10 @@ bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& Regio
 			bool BricksOnTheRegionFrontierAtMinusY = false;
 
 			int iterator = -1;
-			while (iterator < LinesOfText.Num() - 6)
+			while (iterator < LinesOfText.Num() - 7)
 			{
 				iterator++;
-				FString CurrentLine = LinesOfText[iterator + 5];
+				FString CurrentLine = LinesOfText[iterator + 6];
 
 				if (LakeBricks)
 				{
@@ -730,10 +741,10 @@ bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 Material
 			if (MaterialIndex == 1)
 			{
 				const double StartTime = FPlatformTime::Seconds();
-				CreateLakeB(Region, BrickIndex);
+				CreateLake(Region, BrickIndex);
 
 
-				UE_LOG(LogStats, Log, TEXT("CreateLakeB took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
+				UE_LOG(LogStats, Log, TEXT("CreateLake took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
 
 				// Wait for all the YSlice tasks to complete.
 				//FTaskGraphInterface::Get().WaitUntilTasksComplete(YSliceCompletionEvents, ENamedThreads::GameThread);
@@ -751,7 +762,7 @@ bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 Material
 	}
 	return false;
 }
-void UBrickGridComponent::CreateLakeB(FBrickRegion& RegionToRead, int32 LakeIndex)
+void UBrickGridComponent::CreateLake(FBrickRegion& RegionToRead, int32 LakeIndex)
 {
 	RegionAndLakeIndexCombo ThisRegionAndLakeIndexCombo;
 	ThisRegionAndLakeIndexCombo.RegionCoordinates = RegionToRead.Coordinates;
@@ -762,33 +773,35 @@ void UBrickGridComponent::CreateLakeB(FBrickRegion& RegionToRead, int32 LakeInde
 		FBrickRegion::LakeSlice LakeToFlood;
 		if (FromBrickCoordinatesFindRegionLake(RegionToRead, LakeIndex, LakeToFlood))
 		{
+			if (LakeToFlood.RegionPressure == 0)
+			{
+				for (int32 LocalZ = 0; LocalZ < BricksPerRegion.Z; ++LocalZ)
+				{
+					for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
+					{
+						for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
+						{
+							int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;
+							if (LakeIndex == Index)
+							{
+								LakeToFlood.RegionPressure = 1 + LocalZ;
+								/*The Region Atmospheric Pressure: If it is on the 127 Z Coordinate,
+								it would have 1 as Pressure. If Z Coordinate were 0, then its Pressure would be 128.*/
+							}
+						}
+					}
+				}
+			}
 			for (int32 iterator = 0; iterator < LakeToFlood.LakeBricks.Num(); iterator++)
 			{
 				RegionToRead.BrickContents[LakeToFlood.LakeBricks[iterator]] = 9;
 			}
 			UE_LOG(LogStats, Log, TEXT("FLOODED %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
-			/*FLOOD LAKES ACROSS THE REGION FRONTIERS*/
-			TArray<int32>IndexesOfLakesAcrossTheRegionFrontier;
-			TArray<FInt3>CoordinatesOfSaidLakes;
-
-			UE_LOG(LogStats, Log, TEXT("InvalidateChunkComponents_OnlyRender %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
 			
 
-			// Create a task for each slice of constant Y
-			/*struct FParameters
-			{
-				const FInt3 MinRegionBrickCoordinates = RegionToRead.Coordinates * BricksPerRegion;
-				const FInt3 MaxRegionBrickCoordinates = MinRegionBrickCoordinates + BricksPerRegion - FInt3::Scalar(1);
-			};
-			YSliceCompletionEvents.Add(
-				FSimpleDelegateGraphTask::CreateAndDispatchWhenReady
-				(
-				FSimpleDelegateGraphTask::FDelegate::CreateStatic(&SomeFunctionThatWillBeCalledOnGameThread, new FParameters())
-				, TEXT("PassParamsToGrameThread")
-				, nullptr
-				, ENamedThreads::GameThread
-				);
-			);*/
+			UE_LOG(LogStats, Log, TEXT("InvalidateChunkComponents_OnlyRender %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
+
+
 			const FInt3 MinRegionBrickCoordinates = RegionToRead.Coordinates * BricksPerRegion;
 			const FInt3 MaxRegionBrickCoordinates = MinRegionBrickCoordinates + BricksPerRegion - FInt3::Scalar(1);
 			int LA = 3;
@@ -797,120 +810,71 @@ void UBrickGridComponent::CreateLakeB(FBrickRegion& RegionToRead, int32 LakeInde
 				InvalidateChunkComponents_OnlyRender(MinRegionBrickCoordinates, MaxRegionBrickCoordinates);
 			}, TStatId(), NULL));
 
-			FindAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, LakeToFlood.BricksOnTheRegionFrontierAtX, IndexesOfLakesAcrossTheRegionFrontier, CoordinatesOfSaidLakes);
-			FloodAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, "X", CoordinatesOfSaidLakes);
-
-			FindAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, LakeToFlood.BricksOnTheRegionFrontierAtY, IndexesOfLakesAcrossTheRegionFrontier, CoordinatesOfSaidLakes);
-			FloodAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, "Y", CoordinatesOfSaidLakes);
-
-			FindAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, LakeToFlood.BricksOnTheRegionFrontierAtMinusX, IndexesOfLakesAcrossTheRegionFrontier, CoordinatesOfSaidLakes);
-			FloodAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, "MinusX", CoordinatesOfSaidLakes);
-
-			FindAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, LakeToFlood.BricksOnTheRegionFrontierAtMinusY, IndexesOfLakesAcrossTheRegionFrontier, CoordinatesOfSaidLakes);
-			FloodAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, "MinusY", CoordinatesOfSaidLakes);
-
-
-			
+			FloodAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, LakeToFlood);
 		}
 	}
 }
-void UBrickGridComponent::FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32>&ListOfLakeIndexesReadyToBeFlooded, TArray<FInt3> &BrickCoordinatesArray)
+void UBrickGridComponent::FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32> &ListOfLakeIndexesReadyToBeFlooded)
 {
 	ListOfLakeIndexesReadyToBeFlooded.Empty();
-	BrickCoordinatesArray.Empty();
 	for (int iterator = 0; iterator < LakeFrontier.Num(); iterator++)
 	{
 		int32 Index = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[LakeFrontier[iterator]];
-		if (!ListOfLakeIndexesReadyToBeFlooded.Contains(Index))
+		if (Index != -1)
 		{
-			ListOfLakeIndexesReadyToBeFlooded.Add(Index);
-		}
-	}
-	for (int32 LocalZ = 0; LocalZ < BricksPerRegion.Z; ++LocalZ)
-	{
-		for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
-		{
-			for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
+			if (!ListOfLakeIndexesReadyToBeFlooded.Contains(Index))
 			{
-				int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;
-				if (ListOfLakeIndexesReadyToBeFlooded.Contains(Index))
-				{
-					FInt3 LakeCoordinates(LocalX, LocalY, LocalZ);
-					BrickCoordinatesArray.Add(LakeCoordinates);
-				}
+				ListOfLakeIndexesReadyToBeFlooded.Add(Index);
 			}
 		}
 	}
 }
-void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, FString FrontierSide, TArray<FInt3> &BrickCoordinates)
+void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeToFlood)
 {
-	FInt3 NeighboorRegionCoordinates;
-	if (FrontierSide == "X")
+	/*FLOOD LAKES ACROSS THE REGION FRONTIERS*/
+	TArray<int32>IndexesOfLakesAcrossTheRegionFrontier;
+	FInt3 ExtraCoordinatesX(1, 0, 0); FInt3 ExtraCoordinatesMinusX(-1, 0, 0); FInt3 ExtraCoordinatesY(0, 1, 0); FInt3 ExtraCoordinatesMinusY(0, -1, 0);
+	FInt3 NeighboorRegionCoordinates[4];
+	NeighboorRegionCoordinates[0] = RegionToRead.Coordinates + ExtraCoordinatesX;
+	NeighboorRegionCoordinates[1] = RegionToRead.Coordinates + ExtraCoordinatesMinusX;
+	NeighboorRegionCoordinates[2] = RegionToRead.Coordinates + ExtraCoordinatesY;
+	NeighboorRegionCoordinates[3] = RegionToRead.Coordinates + ExtraCoordinatesMinusY;
+	const int32* const RegionIndex_X = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[0]);
+	const int32* const RegionIndex_MinusX = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[1]);
+	const int32* const RegionIndex_Y = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[2]);
+	const int32* const RegionIndex_MinusY = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[3]);
+	if (RegionIndex_X)
 	{
-		FInt3 ExtraCoordinates(1, 0, 0);
-		NeighboorRegionCoordinates = RegionToRead.Coordinates + ExtraCoordinates;
-		const int32* const RegionIndex = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates);
-		if (RegionIndex)
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_X], LakeToFlood.BricksOnTheRegionFrontierAtX, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
 		{
-			for (int iterator = 0; iterator < BrickCoordinates.Num(); iterator++)
-			{
-				int32 Index = ((BrickCoordinates[iterator].Y * BricksPerRegion.X) + 0) * BricksPerRegion.Z + BrickCoordinates[iterator].Z;
-				CreateLakeB(Regions[*RegionIndex], Index);
-
-			}
-
+			CreateLake(Regions[*RegionIndex_X], IndexesOfLakesAcrossTheRegionFrontier[iterator]);
 		}
 	}
-	if (FrontierSide == "MinusX")
+	if (RegionIndex_MinusX)
 	{
-		FInt3 ExtraCoordinates(-1, 0, 0);
-		NeighboorRegionCoordinates = RegionToRead.Coordinates + ExtraCoordinates;
-		const int32* const RegionIndex = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates);
-		if (RegionIndex)
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_MinusX], LakeToFlood.BricksOnTheRegionFrontierAtMinusX, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
 		{
-			for (int iterator = 0; iterator < BrickCoordinates.Num(); iterator++)
-			{
-				int32 Index = ((BrickCoordinates[iterator].Y * BricksPerRegion.X) + BrickCoordinates[iterator].X + 31) * BricksPerRegion.Z + BrickCoordinates[iterator].Z;
-				CreateLakeB(Regions[*RegionIndex], Index);
-			}
+			CreateLake(Regions[*RegionIndex_MinusX], IndexesOfLakesAcrossTheRegionFrontier[iterator]);
 		}
 	}
-	if (FrontierSide == "Y")
+	if (RegionIndex_Y)
 	{
-		FInt3 ExtraCoordinates(0, 1, 0);
-		NeighboorRegionCoordinates = RegionToRead.Coordinates + ExtraCoordinates;
-
-		const int32* const RegionIndex = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates);
-		if (RegionIndex)
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_Y], LakeToFlood.BricksOnTheRegionFrontierAtY, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
 		{
-			for (int iterator = 0; iterator < BrickCoordinates.Num(); iterator++)
-			{
-				int32 Index = ((0 * BricksPerRegion.X) + BrickCoordinates[iterator].X) * BricksPerRegion.Z + BrickCoordinates[iterator].Z;
-				CreateLakeB(Regions[*RegionIndex], Index);
-			}
+			CreateLake(Regions[*RegionIndex_Y], IndexesOfLakesAcrossTheRegionFrontier[iterator]);
 		}
 	}
-	if (FrontierSide == "MinusY")
+	if (RegionIndex_MinusY)
 	{
-		FInt3 ExtraCoordinates(0, -1, 0);
-		NeighboorRegionCoordinates = RegionToRead.Coordinates + ExtraCoordinates;
-
-		const int32* const RegionIndex = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates);
-		if (RegionIndex)
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_MinusY], LakeToFlood.BricksOnTheRegionFrontierAtMinusY, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
 		{
-			for (int iterator = 0; iterator < BrickCoordinates.Num(); iterator++)
-			{
-				int32 Index = (((BrickCoordinates[iterator].Y + 31)* BricksPerRegion.X) + BrickCoordinates[iterator].X) * BricksPerRegion.Z + BrickCoordinates[iterator].Z;
-				CreateLakeB(Regions[*RegionIndex], Index);
-			}
+			CreateLake(Regions[*RegionIndex_MinusY], IndexesOfLakesAcrossTheRegionFrontier[iterator]);
 		}
 	}
-	/*
-	for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
-	{
-	CreateLakeB(RegionToRead, IndexesOfLakesAcrossTheRegionFrontier[iterator]);
-	}
-	*/
 }
 
 void UBrickGridComponent::UpdateMaxNonEmptyBrickMap(FBrickRegion& Region, const FInt3 MinDirtyRegionBrickCoordinates, const FInt3 MaxDirtyRegionBrickCoordinates) const

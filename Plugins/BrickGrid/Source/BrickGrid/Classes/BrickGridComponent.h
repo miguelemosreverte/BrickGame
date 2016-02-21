@@ -167,7 +167,7 @@ struct FBrickRegion
 		FInt3 Coordinates;
 		int32 Volume = 0;//number of blocks contained by lake
 		int32 DownwardsFlux = 0;//number of blocks contained by DownwardWater
-		int32 Presion;
+		int32 RegionPressure = 0;
 		TArray<HorizontalCoordinates>DownwardWater;
 		TArray<int32> LakeBricks;
 		TArray<int32> LakeFrontier;
@@ -320,9 +320,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Brick Grid")
 		FInt3 MaxBrickCoordinates;
 
-
-	FInt3 MinBrickCoordinates_temporal;
-	FInt3 MaxBrickCoordinates_temporal;
 	inline FInt3 BrickToRenderChunkCoordinates(const FInt3& BrickCoordinates) const
 	{
 		return FInt3::SignedShiftRight(BrickCoordinates, BricksPerRenderChunkLog2);
@@ -404,8 +401,8 @@ private:
 	void FromBrickCoordinatesSaveRegionLake(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeSliceToSave);
 	void ReadRegionLakes(FBrickRegion& RegionToRead);
 	void SaveRegionLakes(FBrickRegion& RegionToRead);
-	void FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32>&ListOfLakeIndexesReadyToBeFlooded, TArray<FInt3> &BrickCoordinatesArray);
-	void FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, FString FrontierSide, TArray<FInt3> &BrickCoordinates);
+	void FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32> &BrickCoordinatesArray);
+	void FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeSlice);
 
 	void InvalidateChunkComponents_OnlyRender(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates);
 	/*
@@ -413,7 +410,7 @@ private:
 	void IsThereALakeToFloodOverTheOtherSideOfTheRegionFrontier(FBrickRegion& RegionToReadFString, FString FrontierSide, FInt3 &BrickCoordinates);
 	void FindAllLakesThatCanBeFloodedFromALakeFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32>&ListOfLakeIndexesReadyToBeFlooded, TArray<FInt3> &BrickCoordinatesArray);
 	*/
-	void CreateLakeB(FBrickRegion& RegionToRead, int32 BrickIndex);
+	void CreateLake(FBrickRegion& RegionToRead, int32 BrickIndex);
 	// Saves a copy on disk of the grid's brick data.	
 	void SaveRegion(FBrickRegion& RegionToSave);
 

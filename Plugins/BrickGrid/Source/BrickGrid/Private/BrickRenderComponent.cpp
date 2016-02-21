@@ -389,6 +389,9 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 			// Create an array of the vertices needed to render this chunk, along with a map from 3D coordinates to indices.
 			TArray<uint16> VertexIndexMap;
 			VertexIndexMap.Empty(LocalVertexDim.X * LocalVertexDim.Y * LocalVertexDim.Z);
+			TArray<uint16> WaterVertexIndexMap;
+			WaterVertexIndexMap.Empty(LocalVertexDim.X * LocalVertexDim.Y * LocalVertexDim.Z);
+
 			for (int32 LocalVertexY = 0; LocalVertexY < LocalVertexDim.Y; ++LocalVertexY)
 			{
 				for (int32 LocalVertexX = 0; LocalVertexX < LocalVertexDim.X; ++LocalVertexX)
@@ -399,6 +402,7 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 						bool HasEmptyAdjacentBrick = false;
 						bool HasNonEmptyAdjacentBrick = false;
+						bool IsWaterVertex = false;
 
 						const FInt3 OwnLocalBrickCoordinates = LocalVertexCoordinates + GetCornerVertexOffset(0) + LocalBrickExpansion - FInt3::Scalar(1);
 						const uint32 OwnLocalBrickIndex = (OwnLocalBrickCoordinates.Y * LocalBricksDim.X + OwnLocalBrickCoordinates.X) * LocalBricksDim.Z + OwnLocalBrickCoordinates.Z;
@@ -407,8 +411,13 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 						{
 							const FInt3 LocalBrickCoordinates = LocalVertexCoordinates + GetCornerVertexOffset(AdjacentBrickIndex) + LocalBrickExpansion - FInt3::Scalar(1);
 							const uint32 LocalBrickIndex = (LocalBrickCoordinates.Y * LocalBricksDim.X + LocalBrickCoordinates.X) * LocalBricksDim.Z + LocalBrickCoordinates.Z;
-							if ((LocalBrickMaterials[OwnLocalBrickIndex] == 9 && LocalBrickMaterials[LocalBrickIndex] == EmptyMaterialIndex) 
-								|| (LocalBrickMaterials[OwnLocalBrickIndex] != 9 && (LocalBrickMaterials[LocalBrickIndex] == 9 || LocalBrickMaterials[LocalBrickIndex] == EmptyMaterialIndex )))//being 9 the water material index
+							if (LocalBrickMaterials[OwnLocalBrickIndex] == 9) IsWaterVertex = true;
+
+							if ((LocalBrickMaterials[OwnLocalBrickIndex] == 9 && LocalBrickMaterials[LocalBrickIndex] == EmptyMaterialIndex)
+								||
+								(LocalBrickMaterials[OwnLocalBrickIndex] != 9
+								&& (LocalBrickMaterials[LocalBrickIndex] == 9 || LocalBrickMaterials[LocalBrickIndex] == EmptyMaterialIndex))
+								)//being 9 the water material index
 							{
 								HasEmptyAdjacentBrick = true;
 							}
@@ -417,18 +426,52 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 								HasNonEmptyAdjacentBrick = true;
 							}
 						}
-
-						if (HasEmptyAdjacentBrick && HasNonEmptyAdjacentBrick)
+						if (!IsWaterVertex)
 						{
-							VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
-							new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
-								LocalVertexCoordinates,
-								LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
-								);
+
+							if (HasEmptyAdjacentBrick && HasNonEmptyAdjacentBrick)
+							{
+								VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+								new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+									LocalVertexCoordinates,
+									LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+									);
+								WaterVertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+								new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+									LocalVertexCoordinates,
+									LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+									);
+							}
+							else
+							{
+								VertexIndexMap.Add(0);
+								WaterVertexIndexMap.Add(0);
+							}
 						}
 						else
 						{
-							VertexIndexMap.Add(0);
+							if (HasEmptyAdjacentBrick && HasNonEmptyAdjacentBrick)
+							{
+								WaterVertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+								new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+									LocalVertexCoordinates,
+									LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+									);
+								VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+								new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+									LocalVertexCoordinates,
+									LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+									);
+							}
+							else
+							{
+								VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+								new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+									LocalVertexCoordinates,
+									LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+									);
+								WaterVertexIndexMap.Add(0);
+							}
 						}
 					}
 				}
@@ -464,6 +507,12 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 											const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][FaceVertexIndex]);
 											const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
 											FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+
+											/*if (BrickMaterial != 9)
+												FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+												else
+												FaceVertexIndices[FaceVertexIndex] = WaterVertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+												*/
 										}
 
 										// Write the indices for the brick face.

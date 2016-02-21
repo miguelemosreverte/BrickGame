@@ -449,12 +449,12 @@ bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& Regio
 				}
 				if (DownwardWater)
 				{
-					if (CurrentLine != "BricksOnTheRegionFrontierAtMinusX")
+					if (CurrentLine != "BricksOnTheRegionFrontierAtX")
 						LakeSliceToRead.DownwardWater.Add(FCString::Atoi(*CurrentLine));
 					else
 					{
 						DownwardWater = false;
-						BricksOnTheRegionFrontierAtMinusX = true;
+						BricksOnTheRegionFrontierAtX = true;
 					}
 				}
 				if (BricksOnTheRegionFrontierAtX)
@@ -826,7 +826,7 @@ void UBrickGridComponent::CreateLake(FBrickRegion& RegionToRead, int32 LakeIndex
 				RegionToRead.BrickContents[LakeToFlood.LakeBricks[iterator]] = 9;
 			}
 			UE_LOG(LogStats, Log, TEXT("FLOODED %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
-			
+
 
 			UE_LOG(LogStats, Log, TEXT("InvalidateChunkComponents_OnlyRender %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
 
@@ -862,18 +862,19 @@ void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontierAndDownwa
 {
 	/*FLOOD LAKES ACROSS THE REGION FRONTIERS*/
 	TArray<int32>IndexesOfLakesAcrossTheRegionFrontier;
-	FInt3 ExtraCoordinatesX(1, 0, 0); FInt3 ExtraCoordinatesMinusX(-1, 0, 0); FInt3 ExtraCoordinatesY(0, 1, 0); FInt3 ExtraCoordinatesMinusY(0, -1, 0); FInt3 ExtraCoordinatesMinusZ(0, 0, -1);
-	FInt3 NeighboorRegionCoordinates[5];
-	NeighboorRegionCoordinates[0] = RegionToRead.Coordinates + ExtraCoordinatesX;
-	NeighboorRegionCoordinates[1] = RegionToRead.Coordinates + ExtraCoordinatesMinusX;
-	NeighboorRegionCoordinates[2] = RegionToRead.Coordinates + ExtraCoordinatesY;
-	NeighboorRegionCoordinates[3] = RegionToRead.Coordinates + ExtraCoordinatesMinusY;
-	NeighboorRegionCoordinates[4] = RegionToRead.Coordinates + ExtraCoordinatesMinusZ;
-	const int32* const RegionIndex_X = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[0]);
-	const int32* const RegionIndex_MinusX = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[1]);
-	const int32* const RegionIndex_Y = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[2]);
-	const int32* const RegionIndex_MinusY = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[3]);
-	const int32* const RegionIndex_MinusZ = RegionCoordinatesToIndex.Find(NeighboorRegionCoordinates[4]);
+
+	FInt3 ExtraCoordinatesX(1, 0, 0); 
+	FInt3 ExtraCoordinatesMinusX(-1, 0, 0); 
+	FInt3 ExtraCoordinatesY(0, 1, 0); 
+	FInt3 ExtraCoordinatesMinusY(0, -1, 0); 
+	FInt3 ExtraCoordinatesMinusZ(0, 0, -1);
+	
+	const int32* const RegionIndex_X = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesX);
+	const int32* const RegionIndex_MinusX = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusX);
+	const int32* const RegionIndex_Y = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesY);
+	const int32* const RegionIndex_MinusY = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusY);
+	const int32* const RegionIndex_MinusZ = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusZ);
+	
 	if (RegionIndex_X)
 	{
 		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_X], LakeToFlood.BricksOnTheRegionFrontierAtX, IndexesOfLakesAcrossTheRegionFrontier);
@@ -882,6 +883,7 @@ void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontierAndDownwa
 			CreateLake(Regions[*RegionIndex_X], IndexesOfLakesAcrossTheRegionFrontier[iterator]);
 		}
 	}
+
 	if (RegionIndex_MinusX)
 	{
 		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_MinusX], LakeToFlood.BricksOnTheRegionFrontierAtMinusX, IndexesOfLakesAcrossTheRegionFrontier);
@@ -1034,6 +1036,11 @@ void UBrickGridComponent::InvalidateChunkComponents_OnlyRender(const FInt3& MinB
 					if (ChunkZ >= MinRenderChunkCoordinates.Z)
 					{
 						RenderComponent->MarkRenderStateDirty();
+					}
+					else
+					{
+						// If the chunk only needs to be invalidate to update its ambient occlusion, defer it as a low priority update.
+						RenderComponent->HasLowPriorityUpdatePending = true;
 					}
 				}
 			}

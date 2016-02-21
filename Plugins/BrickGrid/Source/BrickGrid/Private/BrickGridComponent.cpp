@@ -729,7 +729,14 @@ bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 Material
 			FBrickRegion& Region = Regions[*RegionIndex];
 			if (MaterialIndex == 1)
 			{
+				const double StartTime = FPlatformTime::Seconds();
 				CreateLakeB(Region, BrickIndex);
+
+
+				UE_LOG(LogStats, Log, TEXT("CreateLakeB took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
+
+				// Wait for all the YSlice tasks to complete.
+				//FTaskGraphInterface::Get().WaitUntilTasksComplete(YSliceCompletionEvents, ENamedThreads::GameThread);
 
 				for (int iterator = 0; iterator < ListOfVisitedRegionAndLakeIndexCombos.Num(); iterator++)
 				{
@@ -746,7 +753,6 @@ bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 Material
 }
 void UBrickGridComponent::CreateLakeB(FBrickRegion& RegionToRead, int32 LakeIndex)
 {
-	double StartTime = FPlatformTime::Seconds();
 	RegionAndLakeIndexCombo ThisRegionAndLakeIndexCombo;
 	ThisRegionAndLakeIndexCombo.RegionCoordinates = RegionToRead.Coordinates;
 	ThisRegionAndLakeIndexCombo.LakeIndex = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[LakeIndex];
@@ -760,21 +766,36 @@ void UBrickGridComponent::CreateLakeB(FBrickRegion& RegionToRead, int32 LakeInde
 			{
 				RegionToRead.BrickContents[LakeToFlood.LakeBricks[iterator]] = 9;
 			}
-			UE_LOG(LogStats, Log, TEXT("FLOODED %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
-
-
-			UE_LOG(LogStats, Log, TEXT("FLOODED took %fms "), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
-
+			UE_LOG(LogStats, Log, TEXT("FLOODED %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
 			/*FLOOD LAKES ACROSS THE REGION FRONTIERS*/
 			TArray<int32>IndexesOfLakesAcrossTheRegionFrontier;
 			TArray<FInt3>CoordinatesOfSaidLakes;
 
 			UE_LOG(LogStats, Log, TEXT("InvalidateChunkComponents_OnlyRender %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
-			StartTime = FPlatformTime::Seconds();
+			
+
+			// Create a task for each slice of constant Y
+			/*struct FParameters
+			{
+				const FInt3 MinRegionBrickCoordinates = RegionToRead.Coordinates * BricksPerRegion;
+				const FInt3 MaxRegionBrickCoordinates = MinRegionBrickCoordinates + BricksPerRegion - FInt3::Scalar(1);
+			};
+			YSliceCompletionEvents.Add(
+				FSimpleDelegateGraphTask::CreateAndDispatchWhenReady
+				(
+				FSimpleDelegateGraphTask::FDelegate::CreateStatic(&SomeFunctionThatWillBeCalledOnGameThread, new FParameters())
+				, TEXT("PassParamsToGrameThread")
+				, nullptr
+				, ENamedThreads::GameThread
+				);
+			);*/
 			const FInt3 MinRegionBrickCoordinates = RegionToRead.Coordinates * BricksPerRegion;
 			const FInt3 MaxRegionBrickCoordinates = MinRegionBrickCoordinates + BricksPerRegion - FInt3::Scalar(1);
-			InvalidateChunkComponents_OnlyRender(MinBrickCoordinates, MaxBrickCoordinates);
-			UE_LOG(LogStats, Log, TEXT("InvalidateChunkComponents_OnlyRender  took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
+			int LA = 3;
+			YSliceCompletionEvents.Add(FFunctionGraphTask::CreateAndDispatchWhenReady([&, LA]()
+			{
+				InvalidateChunkComponents_OnlyRender(MinRegionBrickCoordinates, MaxRegionBrickCoordinates);
+			}, TStatId(), NULL));
 
 			FindAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, LakeToFlood.BricksOnTheRegionFrontierAtX, IndexesOfLakesAcrossTheRegionFrontier, CoordinatesOfSaidLakes);
 			FloodAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, "X", CoordinatesOfSaidLakes);
@@ -823,7 +844,6 @@ void UBrickGridComponent::FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickReg
 }
 void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, FString FrontierSide, TArray<FInt3> &BrickCoordinates)
 {
-	double StartTime = FPlatformTime::Seconds();
 	FInt3 NeighboorRegionCoordinates;
 	if (FrontierSide == "X")
 	{
@@ -841,9 +861,6 @@ void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRe
 
 		}
 	}
-	UE_LOG(LogStats, Log, TEXT("Talking about  %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
-
-	UE_LOG(LogStats, Log, TEXT(" FrontierSide == X  took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime)); StartTime = FPlatformTime::Seconds();
 	if (FrontierSide == "MinusX")
 	{
 		FInt3 ExtraCoordinates(-1, 0, 0);
@@ -858,9 +875,6 @@ void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRe
 			}
 		}
 	}
-	UE_LOG(LogStats, Log, TEXT("Talking about %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
-
-	UE_LOG(LogStats, Log, TEXT("FrontierSide == MinusX  took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime)); StartTime = FPlatformTime::Seconds();
 	if (FrontierSide == "Y")
 	{
 		FInt3 ExtraCoordinates(0, 1, 0);
@@ -876,9 +890,6 @@ void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRe
 			}
 		}
 	}
-	UE_LOG(LogStats, Log, TEXT("Talking about  %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
-
-	UE_LOG(LogStats, Log, TEXT("FrontierSide == Y took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime)); StartTime = FPlatformTime::Seconds();
 	if (FrontierSide == "MinusY")
 	{
 		FInt3 ExtraCoordinates(0, -1, 0);
@@ -894,9 +905,6 @@ void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRe
 			}
 		}
 	}
-	UE_LOG(LogStats, Log, TEXT("Talking about  %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
-
-	UE_LOG(LogStats, Log, TEXT("FrontierSide == MinusY  took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
 	/*
 	for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
 	{
@@ -996,14 +1004,8 @@ void UBrickGridComponent::GetMaxNonEmptyBrickZ(const FInt3& MinBrickCoordinates,
 
 void UBrickGridComponent::InvalidateChunkComponents_OnlyRender(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates)
 {
-	// Expand the brick box by 1 brick so that bricks facing the one being invalidated are also updated.
-	const FInt3 FacingExpansionExtent = FInt3::Scalar(1);
-
-	// Invalidate render components. Note that because of ambient occlusion, the render chunks need to be invalidated all the way to the bottom of the grid!
-	const FInt3 AmbientOcclusionExpansionExtent = FInt3::Scalar(Parameters.AmbientOcclusionBlurRadius);
-	const FInt3 RenderExpansionExtent = AmbientOcclusionExpansionExtent + FacingExpansionExtent;
-	const FInt3 MinRenderChunkCoordinates = BrickToRenderChunkCoordinates(MinBrickCoordinates - RenderExpansionExtent);
-	const FInt3 MaxRenderChunkCoordinates = BrickToRenderChunkCoordinates(MaxBrickCoordinates + RenderExpansionExtent);
+	const FInt3 MinRenderChunkCoordinates = BrickToRenderChunkCoordinates(MinBrickCoordinates);
+	const FInt3 MaxRenderChunkCoordinates = BrickToRenderChunkCoordinates(MaxBrickCoordinates);
 	for (int32 ChunkX = MinRenderChunkCoordinates.X; ChunkX <= MaxRenderChunkCoordinates.X; ++ChunkX)
 	{
 		for (int32 ChunkY = MinRenderChunkCoordinates.Y; ChunkY <= MaxRenderChunkCoordinates.Y; ++ChunkY)
@@ -1016,11 +1018,6 @@ void UBrickGridComponent::InvalidateChunkComponents_OnlyRender(const FInt3& MinB
 					if (ChunkZ >= MinRenderChunkCoordinates.Z)
 					{
 						RenderComponent->MarkRenderStateDirty();
-					}
-					else
-					{
-						// If the chunk only needs to be invalidate to update its ambient occlusion, defer it as a low priority update.
-						RenderComponent->HasLowPriorityUpdatePending = true;
 					}
 				}
 			}

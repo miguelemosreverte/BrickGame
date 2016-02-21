@@ -321,7 +321,8 @@ public:
 		FInt3 MaxBrickCoordinates;
 
 
-
+	FInt3 MinBrickCoordinates_temporal;
+	FInt3 MaxBrickCoordinates_temporal;
 	inline FInt3 BrickToRenderChunkCoordinates(const FInt3& BrickCoordinates) const
 	{
 		return FInt3::SignedShiftRight(BrickCoordinates, BricksPerRenderChunkLog2);
@@ -358,7 +359,7 @@ private:
 			return A.RegionCoordinates == B.RegionCoordinates && A.LakeIndex == B.LakeIndex;
 		}
 	};
-
+	FGraphEventArray YSliceCompletionEvents;
 	TArray<RegionAndLakeIndexCombo>ListOfVisitedRegionAndLakeIndexCombos;
 
 	// Transient maps to help lookup regions and chunks by coordinates.

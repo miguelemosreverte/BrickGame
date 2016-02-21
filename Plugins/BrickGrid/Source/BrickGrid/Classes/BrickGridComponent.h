@@ -158,17 +158,13 @@ struct FBrickRegion
 	UPROPERTY()
 		TArray<uint8> BrickContents;
 
-	struct HorizontalCoordinates {
-		uint8 X;
-		uint8 Y;
-	};
 	struct LakeSlice {
 		int32 Index;
 		FInt3 Coordinates;
 		int32 Volume = 0;//number of blocks contained by lake
 		int32 DownwardsFlux = 0;//number of blocks contained by DownwardWater
 		int32 RegionPressure = 0;
-		TArray<HorizontalCoordinates>DownwardWater;
+		TArray<int32>DownwardWater;
 		TArray<int32> LakeBricks;
 		TArray<int32> LakeFrontier;
 		TArray <int32> BricksOnTheRegionFrontierAtX;
@@ -402,7 +398,7 @@ private:
 	void ReadRegionLakes(FBrickRegion& RegionToRead);
 	void SaveRegionLakes(FBrickRegion& RegionToRead);
 	void FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32> &BrickCoordinatesArray);
-	void FloodAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeSlice);
+	void FloodAllIndexesOfLakesAcrossTheRegionFrontierAndDownwardsTheLakeItself(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeSlice);
 
 	void InvalidateChunkComponents_OnlyRender(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates);
 	/*

@@ -757,6 +757,115 @@ void UBrickGridComponent::SetBrickMaterialArray(const FInt3& MinBrickCoordinates
 	InvalidateChunkComponents(MinBrickCoordinates, MaxBrickCoordinates);
 }
 
+void UBrickGridComponent::IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, int BrickIndex)
+{
+	FInt3 BrickCoordinates;
+	for (int32 LocalZ = BricksPerRegion.Z - 1; LocalZ >= 0; --LocalZ)
+	{
+		for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
+		{
+			for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
+			{
+				int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;// is always less than 131072
+				if (Index == BrickIndex)
+				{
+					BrickCoordinates.X = LocalX;
+					BrickCoordinates.Y = LocalY;
+					BrickCoordinates.Z = LocalZ;
+				}
+			}
+		}
+	}
+	int Up = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int Down = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z - 1;
+	int MinusX = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X - 1) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int PlusX = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X + 1) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int MinusY = (((BrickCoordinates.Y - 1) * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int PlusY = (((BrickCoordinates.Y + 1) * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+
+	int Max = BricksPerRegion.X * BricksPerRegion.Y * BricksPerRegion.Z;
+	bool Up_IsValid = false;
+	bool Down_IsValid = false;
+	bool MinusX_IsValid = false;
+	bool PlusX_IsValid = false;
+	bool MinusY_IsValid = false;
+	bool PlusY_IsValid = false;
+	if (Up >= 0 && Up < Max) Up_IsValid = true;
+	if (Down >= 0 && Down < Max) Down_IsValid = true;
+	if (MinusX >= 0 && MinusX < Max) MinusX_IsValid = true;
+	if (PlusX >= 0 && PlusX < Max) PlusX_IsValid = true;
+	if (MinusY >= 0 && MinusY < Max) MinusY_IsValid = true;
+	if (PlusY >= 0 && PlusY < Max) PlusY_IsValid = true;
+	bool ThereIsWaterClose = false;
+
+	if (Up_IsValid)
+		if (RegionToRead.BrickContents[Up] == 9)
+			ThereIsWaterClose = true;
+	if (Down_IsValid)
+		if (RegionToRead.BrickContents[Down] == 9)
+			ThereIsWaterClose = true;
+	if (MinusX_IsValid)
+		if (RegionToRead.BrickContents[MinusX] == 9)
+			ThereIsWaterClose = true;
+	if (PlusX_IsValid)
+		if (RegionToRead.BrickContents[PlusX] == 9)
+			ThereIsWaterClose = true;
+	if (MinusY_IsValid)
+		if (RegionToRead.BrickContents[MinusY] == 9)
+			ThereIsWaterClose = true;
+	if (PlusY_IsValid)
+		if (RegionToRead.BrickContents[PlusY] == 9)
+			ThereIsWaterClose = true;
+
+	if (ThereIsWaterClose)
+	{
+
+		FBrickRegion::LakeSlice LakeToFlood_Up;
+		FBrickRegion::LakeSlice LakeToFlood_Down;
+		FBrickRegion::LakeSlice LakeToFlood_MinusX;
+		FBrickRegion::LakeSlice LakeToFlood_PlusX;
+		FBrickRegion::LakeSlice LakeToFlood_MinusY;
+		FBrickRegion::LakeSlice LakeToFlood_PlusY;
+
+		int BiggestPressure = -1;
+		int LakeIndexWithBiggestPressure;
+		if (Up_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, Up, LakeToFlood_Up) && LakeToFlood_Up.Pressure > BiggestPressure)
+				BiggestPressure = LakeToFlood_Up.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_Up.Index;
+		}
+		if (Down_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, Down, LakeToFlood_Down) && LakeToFlood_Down.Pressure > BiggestPressure)
+				BiggestPressure = LakeToFlood_Down.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_Down.Index;
+		}
+		if (MinusX_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, MinusX, LakeToFlood_MinusX) && LakeToFlood_MinusX.Pressure > BiggestPressure)
+				BiggestPressure = LakeToFlood_MinusX.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_MinusX.Index;
+		}
+		if (PlusX_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, PlusX, LakeToFlood_PlusX) && LakeToFlood_PlusX.Pressure > BiggestPressure)
+				BiggestPressure = LakeToFlood_PlusX.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_PlusX.Index;
+		}
+		if (MinusY_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, MinusY, LakeToFlood_MinusY) && LakeToFlood_MinusY.Pressure > BiggestPressure)
+				BiggestPressure = LakeToFlood_MinusY.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_MinusY.Index;
+		}
+		if (PlusY_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, PlusY, LakeToFlood_PlusY) && LakeToFlood_PlusY.Pressure > BiggestPressure)
+				BiggestPressure = LakeToFlood_PlusY.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_PlusY.Index;
+		}
+		if (BiggestPressure != -1)
+		{
+			CreateLake(RegionToRead, LakeIndexWithBiggestPressure, BiggestPressure);
+		}
+	}
+
+}
 bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 MaterialIndex)
 {
 	if (FInt3::All(BrickCoordinates >= MinBrickCoordinates) && FInt3::All(BrickCoordinates <= MaxBrickCoordinates) && MaterialIndex < Parameters.Materials.Num())
@@ -767,6 +876,10 @@ bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 Material
 		{
 			const uint32 BrickIndex = BrickCoordinatesToRegionBrickIndex(RegionCoordinates, BrickCoordinates);
 			FBrickRegion& Region = Regions[*RegionIndex];
+			if (MaterialIndex == 0)
+			{
+				IfThereIsALakeCloseThereShouldBeAFlood(Region, BrickIndex);
+			}
 			if (MaterialIndex == 1)
 			{
 				const double StartTime = FPlatformTime::Seconds();

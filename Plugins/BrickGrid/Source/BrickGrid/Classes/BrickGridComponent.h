@@ -406,6 +406,7 @@ private:
 	void IsThereALakeToFloodOverTheOtherSideOfTheRegionFrontier(FBrickRegion& RegionToReadFString, FString FrontierSide, FInt3 &BrickCoordinates);
 	void FindAllLakesThatCanBeFloodedFromALakeFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32>&ListOfLakeIndexesReadyToBeFlooded, TArray<FInt3> &BrickCoordinatesArray);
 	*/
+	void IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, int BrickIndex);
 	void CreateLake(FBrickRegion& RegionToRead, int32 BrickIndex, int32 Pressure);
 	// Saves a copy on disk of the grid's brick data.	
 	void SaveRegion(FBrickRegion& RegionToSave);

@@ -89,7 +89,7 @@ bool UBrickGridComponent::ReadRegionUncompressed(FBrickRegion& RegionToRead)
 	Y << RegionToRead.Coordinates.Y;
 	Z << RegionToRead.Coordinates.Z;
 	FString title;
-	title = "C:/Users/Migue/Desktop/Regions/";
+	title = Directory;
 	title += (X.str()).c_str();
 	title += " ";
 	title += (Y.str()).c_str();
@@ -277,7 +277,7 @@ void UBrickGridComponent::SaveRegionLakes(FBrickRegion& RegionToRead)
 	Y << RegionToRead.Coordinates.Y;
 	Z << RegionToRead.Coordinates.Z;
 	FString title;
-	title = "C:/Users/Migue/Desktop/Regions/";
+	title = Directory;
 	title += (X.str()).c_str();
 	title += " ";
 	title += (Y.str()).c_str();
@@ -304,7 +304,7 @@ void UBrickGridComponent::FromBrickCoordinatesSaveRegionLake(FBrickRegion& Regio
 	std::ostringstream LakeSliceToSaveIndex;
 	LakeSliceToSaveIndex << LakeSliceToSave.Index;
 	FString title;
-	title = "C:/Users/Migue/Desktop/Regions/";
+	title = Directory;
 	title += (X.str()).c_str();
 	title += " ";
 	title += (Y.str()).c_str();
@@ -359,7 +359,7 @@ void UBrickGridComponent::ReadRegionLakes(FBrickRegion& RegionToRead)
 	Y << RegionToRead.Coordinates.Y;
 	Z << RegionToRead.Coordinates.Z;
 	FString title;
-	title = "C:/Users/Migue/Desktop/Regions/";
+	title = Directory;
 	title += (X.str()).c_str();
 	title += " ";
 	title += (Y.str()).c_str();
@@ -404,7 +404,7 @@ bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& Regio
 			Y << RegionToRead.Coordinates.Y;
 			Z << RegionToRead.Coordinates.Z;
 			FString title;
-			title = "C:/Users/Migue/Desktop/Regions/";
+			title = Directory;
 			title += (X.str()).c_str();
 			title += " ";
 			title += (Y.str()).c_str();
@@ -495,9 +495,13 @@ bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& Regio
 					LakeSliceToRead.BricksOnTheRegionFrontierAtMinusY.Add(FCString::Atoi(*CurrentLine));
 				}
 			}
+			return true;
+		}
+		else
+		{
+			return false;
 		}
 	}
-	return true;
 }
 bool UBrickGridComponent::ReadRegion(FBrickRegion& RegionToRead)
 {
@@ -507,7 +511,7 @@ bool UBrickGridComponent::ReadRegion(FBrickRegion& RegionToRead)
 	Y << RegionToRead.Coordinates.Y;
 	Z << RegionToRead.Coordinates.Z;
 	FString title, title2;
-	title = "C:/Users/Migue/Desktop/Regions/";
+	title = Directory;
 	title += (X.str()).c_str();
 	title += " ";
 	title += (Y.str()).c_str();
@@ -597,7 +601,7 @@ void UBrickGridComponent::SaveRegion(FBrickRegion& RegionToSave)
 	Y << RegionToSave.Coordinates.Y;
 	Z << RegionToSave.Coordinates.Z;
 	FString title, title2;
-	title = "C:/Users/Migue/Desktop/Regions/";
+	title = Directory;
 	title += " ";
 	title += (X.str()).c_str();
 	title += " ";
@@ -648,6 +652,113 @@ void UBrickGridComponent::SetData(const FBrickGridData& Data)
 		// Recreate the region coordinate to index map.
 		RegionCoordinatesToIndex.Add(RegionIt->Coordinates, RegionIt.GetIndex());
 	}
+}
+
+
+void UBrickGridComponent::AddBuildingDataAt(const FInt3& BrickCoordinates, const FBrickGridData& Data)
+{
+
+}
+bool UBrickGridComponent::SetBuilding(const FInt3& BrickCoordinates, const FBrickGridData& Data)
+{
+	/*First it finds the offset between the location on top of which place the building and the building itself*/
+	FInt3 RegionCoordinates = BrickToRegionCoordinates(BrickCoordinates);
+	/*const int32* const RegionIndex = RegionCoordinatesToIndex.Find(RegionCoordinates);
+	const FBrickRegion& Region = Regions[*RegionIndex];
+	const uint32 BrickIndex = BrickCoordinatesToRegionBrickIndex(RegionCoordinates, BrickCoordinates);
+	FInt3 BrickSubRegionCoordinates = RegionBrickIndexToSubregionBrickCoordinates(BrickIndex);*/
+	//return FBrick(Region.BrickContents[BrickIndex]);
+
+	FInt3 Offset;
+	Offset.X = BrickCoordinates.X % BricksPerRegion.X;
+	Offset.Y = BrickCoordinates.Y % BricksPerRegion.Y;
+	Offset.Z = BrickCoordinates.Z % BricksPerRegion.Z;
+
+	FString title;
+	//title = BuildingNameDirectory;
+
+	title = "C:/Users/Migue/Desktop/Regions/";
+	title += "Barrack/";
+	title += "size.txt";
+
+	UE_LOG(LogStats, Log, TEXT("AAAAAAAAAAAAAAA: %s"), *title);
+	TArray <FString> LinesOfText;
+	FFileHelper::LoadANSITextFileToStrings(*title, NULL, LinesOfText);
+	const int32 MaximumAmmountOfRegions_X = FCString::Atoi(*LinesOfText[0]);
+	const int32 MaximumAmmountOfRegions_Y = FCString::Atoi(*LinesOfText[1]);
+	const int32 MaximumAmmountOfRegions_Z = FCString::Atoi(*LinesOfText[2]);
+
+	//RegionCoordinates = RegionCoordinates - FInt3::Scalar(1);
+	auto CopyOfSentRegions = Data.Regions;
+	FInt3 OriginalFlatRegionCoordinates = BrickToRegionCoordinates(BrickCoordinates);
+	//UE_LOG(LogStats, Log, TEXT("FloorRegionCoords: %d,%d,%d"), RegionCoordinates.X, RegionCoordinates.Y, RegionCoordinates.Z);
+	for (int32 RegionZ = 0; RegionZ <= MaximumAmmountOfRegions_Z; ++RegionZ)
+	{
+		for (int32 RegionX = 0; RegionX <= MaximumAmmountOfRegions_X; ++RegionX)
+		{
+			for (int32 RegionY = 0; RegionY <= MaximumAmmountOfRegions_Y; ++RegionY)
+			{
+				FInt3 BuildingRegionCoordinates(RegionX, RegionY, RegionZ);
+				int BuildingRegionIndex = 0;
+				bool BuildingRegionWasFound = false;
+				for (int iterator = 0; iterator < Data.Regions.Num(); iterator++)
+				{
+					if (Data.Regions[iterator].Coordinates == BuildingRegionCoordinates)
+					{
+						BuildingRegionIndex = iterator;
+						BuildingRegionWasFound = true;
+						break;
+					}
+				}
+				if (BuildingRegionWasFound)
+				{
+					FInt3 RegionCoordinates = OriginalFlatRegionCoordinates + BuildingRegionCoordinates;
+					int32* RegionIndex = RegionCoordinatesToIndex.Find(RegionCoordinates);
+					if (RegionIndex != NULL)
+					{
+						FBrickRegion& Region = Regions[*RegionIndex];
+						if (Data.Regions[BuildingRegionIndex].BrickContents.Num() > 0)
+						{
+
+
+							for (int32 LocalZ = BricksPerRegion.Z - 1; LocalZ >= 0; --LocalZ)
+							{
+								for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
+								{
+									for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
+									{
+										int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;
+										int32 LocalX_PlusOffset = Offset.X + LocalX + 1;
+										int32 LocalY_PlusOffset = Offset.Y + LocalY + 1;
+										int32 LocalZ_PlusOffset = Offset.Z + LocalZ + 1;
+										int32 IndexPlusOffset = ((LocalY_PlusOffset * BricksPerRegion.X) + LocalX_PlusOffset) * BricksPerRegion.Z + LocalZ_PlusOffset;
+										if (Data.Regions[BuildingRegionIndex].BrickContents[Index] != 0)
+										{
+											Region.BrickContents[Index] = Data.Regions[BuildingRegionIndex].BrickContents[Index];
+											//if (IndexPlusOffset < 131072)
+												//Region.BrickContents[IndexPlusOffset] = Data.Regions[BuildingRegionIndex].BrickContents[Index];
+										}
+									}
+								}
+							}
+							const FInt3 MinRegionBrickCoordinates = Region.Coordinates * BricksPerRegion;
+							const FInt3 MaxRegionBrickCoordinates = MinRegionBrickCoordinates + BricksPerRegion - FInt3::Scalar(1);
+							InvalidateChunkComponents(MinRegionBrickCoordinates, MaxRegionBrickCoordinates);
+						}
+					}
+				}
+
+
+			}
+
+		}
+	}
+	/*
+	for (auto RegionIt = CopyOfSentRegions.CreateIterator(); RegionIt; ++RegionIt)
+	{
+
+	}*/
+	return true;
 }
 
 FBrick UBrickGridComponent::GetBrick(const FInt3& BrickCoordinates) const
@@ -757,25 +868,9 @@ void UBrickGridComponent::SetBrickMaterialArray(const FInt3& MinBrickCoordinates
 	InvalidateChunkComponents(MinBrickCoordinates, MaxBrickCoordinates);
 }
 
-void UBrickGridComponent::IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, int BrickIndex)
+void UBrickGridComponent::IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, FInt3 BrickCoordinates)
 {
-	FInt3 BrickCoordinates;
-	for (int32 LocalZ = BricksPerRegion.Z - 1; LocalZ >= 0; --LocalZ)
-	{
-		for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
-		{
-			for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
-			{
-				int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;// is always less than 131072
-				if (Index == BrickIndex)
-				{
-					BrickCoordinates.X = LocalX;
-					BrickCoordinates.Y = LocalY;
-					BrickCoordinates.Z = LocalZ;
-				}
-			}
-		}
-	}
+
 	int Up = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
 	int Down = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z - 1;
 	int MinusX = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X - 1) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
@@ -829,35 +924,47 @@ void UBrickGridComponent::IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& R
 
 		int BiggestPressure = -1;
 		int LakeIndexWithBiggestPressure;
-		if (Up_IsValid)
+		/*if (Up_IsValid)
 		{
-			if (FromBrickCoordinatesFindRegionLake(RegionToRead, Up, LakeToFlood_Up) && LakeToFlood_Up.Pressure > BiggestPressure)
-				BiggestPressure = LakeToFlood_Up.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_Up.Index;
+		if (FromBrickCoordinatesFindRegionLake(RegionToRead, Up, LakeToFlood_Up) && LakeToFlood_Up.Pressure > BiggestPressure)
+		{
+		BiggestPressure = LakeToFlood_Up.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_Up.Index;
 		}
+		}*/
 		if (Down_IsValid)
 		{
 			if (FromBrickCoordinatesFindRegionLake(RegionToRead, Down, LakeToFlood_Down) && LakeToFlood_Down.Pressure > BiggestPressure)
-				BiggestPressure = LakeToFlood_Down.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_Down.Index;
+			{
+				BiggestPressure = LakeToFlood_Down.Pressure; LakeIndexWithBiggestPressure = Down;
+			}
 		}
 		if (MinusX_IsValid)
 		{
 			if (FromBrickCoordinatesFindRegionLake(RegionToRead, MinusX, LakeToFlood_MinusX) && LakeToFlood_MinusX.Pressure > BiggestPressure)
-				BiggestPressure = LakeToFlood_MinusX.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_MinusX.Index;
+			{
+				BiggestPressure = LakeToFlood_MinusX.Pressure; LakeIndexWithBiggestPressure = MinusX;
+			}
 		}
 		if (PlusX_IsValid)
 		{
 			if (FromBrickCoordinatesFindRegionLake(RegionToRead, PlusX, LakeToFlood_PlusX) && LakeToFlood_PlusX.Pressure > BiggestPressure)
-				BiggestPressure = LakeToFlood_PlusX.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_PlusX.Index;
+			{
+				BiggestPressure = LakeToFlood_PlusX.Pressure; LakeIndexWithBiggestPressure = PlusX;
+			}
 		}
 		if (MinusY_IsValid)
 		{
 			if (FromBrickCoordinatesFindRegionLake(RegionToRead, MinusY, LakeToFlood_MinusY) && LakeToFlood_MinusY.Pressure > BiggestPressure)
-				BiggestPressure = LakeToFlood_MinusY.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_MinusY.Index;
+			{
+				BiggestPressure = LakeToFlood_MinusY.Pressure; LakeIndexWithBiggestPressure = MinusY;
+			}
 		}
 		if (PlusY_IsValid)
 		{
 			if (FromBrickCoordinatesFindRegionLake(RegionToRead, PlusY, LakeToFlood_PlusY) && LakeToFlood_PlusY.Pressure > BiggestPressure)
-				BiggestPressure = LakeToFlood_PlusY.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_PlusY.Index;
+			{
+				BiggestPressure = LakeToFlood_PlusY.Pressure; LakeIndexWithBiggestPressure = PlusY;
+			}
 		}
 		if (BiggestPressure != -1)
 		{
@@ -878,18 +985,18 @@ bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 Material
 			FBrickRegion& Region = Regions[*RegionIndex];
 			if (MaterialIndex == 0)
 			{
-				IfThereIsALakeCloseThereShouldBeAFlood(Region, BrickIndex);
+				IfThereIsALakeCloseThereShouldBeAFlood(Region, GlobalBrickCoordinateToSubregionBrickCoordinates(BrickCoordinates));
 			}
 			if (MaterialIndex == 1)
 			{
 				const double StartTime = FPlatformTime::Seconds();
 				CreateLake(Region, BrickIndex, 1);
-
+				ListOfVisitedRegionAndLakeIndexCombos.Empty();
 
 				UE_LOG(LogStats, Log, TEXT("CreateLake took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
 
 				// Wait for all the YSlice tasks to complete.
-				//FTaskGraphInterface::Get().WaitUntilTasksComplete(YSliceCompletionEvents, ENamedThreads::GameThread);
+				FTaskGraphInterface::Get().WaitUntilTasksComplete(YSliceCompletionEvents, ENamedThreads::GameThread);
 
 				for (int iterator = 0; iterator < ListOfVisitedRegionAndLakeIndexCombos.Num(); iterator++)
 				{
@@ -906,11 +1013,14 @@ bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 Material
 }
 void UBrickGridComponent::CreateLake(FBrickRegion& RegionToRead, int32 LakeIndex, int32 Pressure)
 {
-	
+
 
 	RegionAndLakeIndexCombo ThisRegionAndLakeIndexCombo;
 	ThisRegionAndLakeIndexCombo.RegionCoordinates = RegionToRead.Coordinates;
 	ThisRegionAndLakeIndexCombo.LakeIndex = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[LakeIndex];
+	if (!ListOfVisitedRegionAndLakeIndexCombos.Contains(ThisRegionAndLakeIndexCombo))
+		UE_LOG(LogStats, Log, TEXT("PROBLEM WAS THE LIST"));
+
 	if (ThisRegionAndLakeIndexCombo.LakeIndex != -1 && !ListOfVisitedRegionAndLakeIndexCombos.Contains(ThisRegionAndLakeIndexCombo))
 	{
 		ListOfVisitedRegionAndLakeIndexCombos.Add(ThisRegionAndLakeIndexCombo);
@@ -920,7 +1030,7 @@ void UBrickGridComponent::CreateLake(FBrickRegion& RegionToRead, int32 LakeIndex
 			LakeToFlood.Pressure = Pressure;
 			for (int32 iterator = 0; iterator < LakeToFlood.LakeBricks.Num(); iterator++)
 			{
-				RegionToRead.BrickContents[LakeToFlood.LakeBricks[iterator]] = 9;
+				RegionToRead.BrickContents[LakeToFlood.LakeBricks[iterator]] = 7;
 			}
 			UE_LOG(LogStats, Log, TEXT("FLOODED %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
 
@@ -960,18 +1070,18 @@ void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontierAndDownwa
 	/*FLOOD LAKES ACROSS THE REGION FRONTIERS*/
 	TArray<int32>IndexesOfLakesAcrossTheRegionFrontier;
 
-	FInt3 ExtraCoordinatesX(1, 0, 0); 
-	FInt3 ExtraCoordinatesMinusX(-1, 0, 0); 
-	FInt3 ExtraCoordinatesY(0, 1, 0); 
-	FInt3 ExtraCoordinatesMinusY(0, -1, 0); 
+	FInt3 ExtraCoordinatesX(1, 0, 0);
+	FInt3 ExtraCoordinatesMinusX(-1, 0, 0);
+	FInt3 ExtraCoordinatesY(0, 1, 0);
+	FInt3 ExtraCoordinatesMinusY(0, -1, 0);
 	FInt3 ExtraCoordinatesMinusZ(0, 0, -1);
-	
+
 	const int32* const RegionIndex_X = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesX);
 	const int32* const RegionIndex_MinusX = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusX);
 	const int32* const RegionIndex_Y = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesY);
 	const int32* const RegionIndex_MinusY = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusY);
 	const int32* const RegionIndex_MinusZ = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusZ);
-	
+
 	if (RegionIndex_X)
 	{
 		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_X], LakeToFlood.BricksOnTheRegionFrontierAtX, IndexesOfLakesAcrossTheRegionFrontier);
@@ -1218,7 +1328,6 @@ void UBrickGridComponent::InvalidateChunkComponents(const FInt3& MinBrickCoordin
 		}
 	}
 }
-
 void UBrickGridComponent::Update(const FVector& WorldViewPosition, float MaxDrawDistance, float MaxCollisionDistance, float MaxDesiredUpdateTime, FBrickGrid_InitRegion OnInitRegion)
 {
 
@@ -1258,22 +1367,22 @@ void UBrickGridComponent::Update(const FVector& WorldViewPosition, float MaxDraw
 						Z << Region.Coordinates.Z;
 						FString title;
 						title = "C:/Users/Migue/Desktop/Regions/";
+						title += Parameters.BuildingName + "/";
+						Directory = title;
 						title += (X.str()).c_str();
 						title += " ";
 						title += (Y.str()).c_str();
 						title += " ";
 						title += (Z.str()).c_str();
 						title += ".bin";
+						//UE_LOG(LogStats, Log, TEXT("Directory %s"), *title);
 						if (FPlatformFileManager::Get().GetPlatformFile().FileExists(*title))
 						{
-							if (Region.Coordinates.Y != 0)
-							{
-								//UE_LOG(LogStats, Log, TEXT("READING REGION %d  %d  %d"), Region.Coordinates.X, Region.Coordinates.Y, Region.Coordinates.Z);
-								RegionCoordinatesToIndex.Add(RegionCoordinates, RegionIndex);
-								//OnInitRegion.Execute(RegionCoordinates);
-								//ReadRegion(Region.Coordinates, Region);
-								ReadRegionUncompressed(Region);
-							}
+							RegionCoordinatesToIndex.Add(RegionCoordinates, RegionIndex);
+							//OnInitRegion.Execute(RegionCoordinates);
+							//ReadRegion(Region.Coordinates, Region);
+							ReadRegionUncompressed(Region);
+
 						}/*
 						 if (ReadRegion(Region.Coordinates, Region) == false)//if it has not been saved on disk yet.
 						 {
@@ -1332,6 +1441,7 @@ void UBrickGridComponent::Update(const FVector& WorldViewPosition, float MaxDraw
 			ChunkIt.RemoveCurrent();
 		}
 	}
+
 	for (int32 ChunkZ = BrickToRenderChunkCoordinates(MinBrickCoordinates).Z; ChunkZ <= BrickToRenderChunkCoordinates(MaxBrickCoordinates).Z && (FPlatformTime::Seconds() - StartTime) < MaxDesiredUpdateTime; ++ChunkZ)
 	{
 		for (int32 ChunkY = MinRenderChunkCoordinates.Y; ChunkY <= MaxRenderChunkCoordinates.Y && (FPlatformTime::Seconds() - StartTime) < MaxDesiredUpdateTime; ++ChunkY)

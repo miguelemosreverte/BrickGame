@@ -84,9 +84,9 @@ struct FInt3
 	}
 #define DEFINE_VECTOR_OPERATOR(symbol) \
 		friend FInt3 operator symbol(const FInt3& A, const FInt3& B) \
-						{ \
+							{ \
 			return FInt3(A.X symbol B.X, A.Y symbol B.Y, A.Z symbol B.Z); \
-						}
+							}
 	DEFINE_VECTOR_OPERATOR(+);
 	DEFINE_VECTOR_OPERATOR(-);
 	DEFINE_VECTOR_OPERATOR(*);
@@ -94,9 +94,9 @@ struct FInt3
 	DEFINE_VECTOR_OPERATOR(&);
 	DEFINE_VECTOR_OPERATOR(<< );
 	DEFINE_VECTOR_OPERATOR(>> );
-	DEFINE_VECTOR_OPERATOR(<);
+	DEFINE_VECTOR_OPERATOR(< );
 	DEFINE_VECTOR_OPERATOR(<= );
-	DEFINE_VECTOR_OPERATOR(>);
+	DEFINE_VECTOR_OPERATOR(> );
 	DEFINE_VECTOR_OPERATOR(>= );
 	friend bool operator==(const FInt3& A, const FInt3& B)
 	{
@@ -199,6 +199,12 @@ struct FBrickGridParameters
 		UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Materials)
 		TArray<FBrickMaterial> Materials;
 
+	//Index of the building represented
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Regions)
+		int32 BuildingIndex = 0;
+	//Name of the building represented
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Regions)
+		FString BuildingName = "Flat";
 	// The material index that means "empty".
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Materials)
 		int32 EmptyMaterialIndex;
@@ -267,9 +273,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
 		void SetData(const FBrickGridData& Data);
 
+	// Sets the grid's brick data.
+	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
+		void AddBuildingDataAt(const FInt3& BrickCoordinates,const FBrickGridData& Data);
+
 	// Reads the brick at the given coordinates.
 	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
 		FBrick GetBrick(const FInt3& BrickCoordinates) const;
+
+
+	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
+		void GetBrickMaterialArrayOfWorld(TArray<uint8>& OutBrickMaterials)
+	{
+	}
+	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
+		void SetBrickMaterialArrayOfWorld(const TArray<uint8>& OutBrickMaterials)
+	{
+	}
 
 	void GetBrickMaterialArray(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates, TArray<uint8>& OutBrickMaterials) const;
 	void SetBrickMaterialArray(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates, const TArray<uint8>& BrickMaterials);
@@ -278,6 +298,10 @@ public:
 	// The returned heights are relative to MinBrickCoordinates.Z, but MaxBrickCoordinates.Z is ignored.
 	// OutHeightmap should be allocated by the caller to contain an int8 for each XY in the rectangle, and is indexed by OutHeightMap[Y * SizeX + X].
 	void GetMaxNonEmptyBrickZ(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates, TArray<int8>& OutHeightMap) const;
+
+	// Writes the building at the given coordinates.
+	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
+		bool SetBuilding(const FInt3& BrickCoordinates, const FBrickGridData& Data);
 
 	// Writes the brick at the given coordinates.
 	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
@@ -341,6 +365,7 @@ public:
 
 private:
 
+	FString Directory;
 	// All regions of the grid.
 	UPROPERTY(Transient, DuplicateTransient)
 		TArray<struct FBrickRegion> Regions;
@@ -380,6 +405,35 @@ private:
 		return SubregionBrickCoordinatesToRegionBrickIndex(BrickCoordinates - (RegionCoordinates << Parameters.BricksPerRegionLog2));
 
 	}
+	inline FInt3 GlobalBrickCoordinateToSubregionBrickCoordinates(const FInt3& BrickCoordinates) const
+	{
+		FInt3 SubregionBrickCoordinates;
+		SubregionBrickCoordinates.X = BrickCoordinates.X % BricksPerRegion.X;
+		SubregionBrickCoordinates.Y = BrickCoordinates.Y % BricksPerRegion.Y;
+		SubregionBrickCoordinates.Z = BrickCoordinates.Z % BricksPerRegion.Z;
+		return SubregionBrickCoordinates;
+	}
+	inline FInt3 RegionBrickIndexToSubregionBrickCoordinates(const uint32 BrickIndex) const
+	{
+		FInt3 BrickCoordinates;
+		for (int32 LocalZ = BricksPerRegion.Z - 1; LocalZ >= 0; --LocalZ)
+		{
+			for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
+			{
+				for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
+				{
+					int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;
+					if (Index == BrickIndex)
+					{
+						BrickCoordinates.X = LocalX;
+						BrickCoordinates.Y = LocalY;
+						BrickCoordinates.Z = LocalZ;
+					}
+				}
+			}
+		}
+		return BrickCoordinates;
+	}
 
 	// Updates the non-empty height map for a single region.
 	void UpdateMaxNonEmptyBrickMap(FBrickRegion& Region, const FInt3 MinDirtyBrickCoordinates, const FInt3 MaxDirtyBrickCoordinates) const;
@@ -406,14 +460,13 @@ private:
 	void IsThereALakeToFloodOverTheOtherSideOfTheRegionFrontier(FBrickRegion& RegionToReadFString, FString FrontierSide, FInt3 &BrickCoordinates);
 	void FindAllLakesThatCanBeFloodedFromALakeFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32>&ListOfLakeIndexesReadyToBeFlooded, TArray<FInt3> &BrickCoordinatesArray);
 	*/
-	void IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, int BrickIndex);
+	void IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, FInt3 BrickCoordinates);
 	void CreateLake(FBrickRegion& RegionToRead, int32 BrickIndex, int32 Pressure);
 	// Saves a copy on disk of the grid's brick data.	
 	void SaveRegion(FBrickRegion& RegionToSave);
 
 	void Decompressuint8Array(TArray<uint8> &CompressedBinaryArray, TArray<uint8> &UncompressedBinaryArray);
 	void Compressuint8Array(TArray<uint8> &CompressedBinaryArray, TArray<uint8> &UncompressedBinaryArray);
-
 };
 
 

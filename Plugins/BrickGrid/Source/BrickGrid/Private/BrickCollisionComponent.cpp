@@ -46,7 +46,10 @@ class UBodySetup* UBrickCollisionComponent::GetBodySetup()
 	if (!CollisionBodySetup)
 	{
 		UpdateCollisionBody();
-	}
+	} 
+	const bool MyBoolValue = CanEverAffectNavigation();
+	UE_LOG(LogStats, Log, TEXT("CanEverAffectNavigation is: %s"), MyBoolValue ? "true" : "false");
+	SetCanEverAffectNavigation(true);
 	return CollisionBodySetup;
 }
 
@@ -58,6 +61,7 @@ void UBrickCollisionComponent::UpdateCollisionBody()
 	{
 		CollisionBodySetup = NewObject<UBodySetup>(this);
 		CollisionBodySetup->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+		UpdateNavigationData();
 	}
 
 	CollisionBodySetup->AggGeom.BoxElems.Reset();

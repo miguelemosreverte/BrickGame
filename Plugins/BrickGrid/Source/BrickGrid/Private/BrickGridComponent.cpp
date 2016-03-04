@@ -659,7 +659,7 @@ void UBrickGridComponent::AddBuildingDataAt(const FInt3& BrickCoordinates, const
 {
 
 }
-bool UBrickGridComponent::SetBuilding(const FInt3& BrickCoordinates, const FBrickGridData& Data)
+bool UBrickGridComponent::SetBuilding(const FInt3& BrickCoordinates, const FString& BuildingName, const FBrickGridData& Data)
 {
 	/*First it finds the offset between the location on top of which place the building and the building itself*/
 	FInt3 RegionCoordinates = BrickToRegionCoordinates(BrickCoordinates);
@@ -674,14 +674,17 @@ bool UBrickGridComponent::SetBuilding(const FInt3& BrickCoordinates, const FBric
 	Offset.Y = BrickCoordinates.Y % BricksPerRegion.Y;
 	Offset.Z = BrickCoordinates.Z % BricksPerRegion.Z;
 
+	const int32 Offset_X = BrickCoordinates.X % BricksPerRegion.X;
+	const int32 Offset_Y = BrickCoordinates.Y % BricksPerRegion.Y;
+	const int32 Offset_Z = BrickCoordinates.Z % BricksPerRegion.Z;
+
 	FString title;
 	//title = BuildingNameDirectory;
 
 	title = "C:/Users/Migue/Desktop/Regions/";
-	title += "Barrack/";
-	title += "size.txt";
+	title += BuildingName;
+	title += "/size.txt";
 
-	UE_LOG(LogStats, Log, TEXT("AAAAAAAAAAAAAAA: %s"), *title);
 	TArray <FString> LinesOfText;
 	FFileHelper::LoadANSITextFileToStrings(*title, NULL, LinesOfText);
 	const int32 MaximumAmmountOfRegions_X = FCString::Atoi(*LinesOfText[0]);
@@ -728,15 +731,15 @@ bool UBrickGridComponent::SetBuilding(const FInt3& BrickCoordinates, const FBric
 									for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
 									{
 										int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;
-										int32 LocalX_PlusOffset = Offset.X + LocalX + 1;
-										int32 LocalY_PlusOffset = Offset.Y + LocalY + 1;
-										int32 LocalZ_PlusOffset = Offset.Z + LocalZ + 1;
+										int32 LocalX_PlusOffset = Offset_X + LocalX;
+										int32 LocalY_PlusOffset = Offset_Y + LocalY;
+										int32 LocalZ_PlusOffset = Offset_Z + LocalZ + 4;
 										int32 IndexPlusOffset = ((LocalY_PlusOffset * BricksPerRegion.X) + LocalX_PlusOffset) * BricksPerRegion.Z + LocalZ_PlusOffset;
 										if (Data.Regions[BuildingRegionIndex].BrickContents[Index] != 0)
 										{
 											Region.BrickContents[Index] = Data.Regions[BuildingRegionIndex].BrickContents[Index];
-											//if (IndexPlusOffset < 131072)
-												//Region.BrickContents[IndexPlusOffset] = Data.Regions[BuildingRegionIndex].BrickContents[Index];
+											/*if (IndexPlusOffset < 131072)
+												Region.BrickContents[IndexPlusOffset] = Data.Regions[BuildingRegionIndex].BrickContents[Index];*/
 										}
 									}
 								}

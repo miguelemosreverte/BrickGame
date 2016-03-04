@@ -301,7 +301,7 @@ public:
 
 	// Writes the building at the given coordinates.
 	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
-		bool SetBuilding(const FInt3& BrickCoordinates, const FBrickGridData& Data);
+		bool SetBuilding(const FInt3& BrickCoordinates, const FString& BuildingName, const FBrickGridData& Data);
 
 	// Writes the brick at the given coordinates.
 	UFUNCTION(BlueprintCallable, Category = "Brick Grid")

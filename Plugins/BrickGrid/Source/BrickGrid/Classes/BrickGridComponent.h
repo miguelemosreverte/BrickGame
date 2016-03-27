@@ -259,6 +259,10 @@ public:
 	void InvalidateChunkComponents(const FInt3& MinBrickCoordinates,const FInt3& MaxBrickCoordinates);
 
 	// Updates the visible chunks for a given view position.
+	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
+		void WaterFloodIteration();
+
+	// Updates the visible chunks for a given view position.
 	UFUNCTION(BlueprintCallable,Category = "Brick Grid")
 	void Update(const FVector& WorldViewPosition,float MaxDrawDistance,float MaxCollisionDistance,float MaxDesiredUpdateTime,FBrickGrid_InitRegion InitRegion);
 
@@ -311,6 +315,8 @@ private:
 	// All regions of the grid.
 	UPROPERTY(Transient,DuplicateTransient)
 	TArray<struct FBrickRegion> Regions;
+
+	TArray<struct FInt3> CoordinatesOfWaterBricksWithEmptyNeighboors;
 
 	// Transient maps to help lookup regions and chunks by coordinates.
 	TMap<FInt3,int32> RegionCoordinatesToIndex;

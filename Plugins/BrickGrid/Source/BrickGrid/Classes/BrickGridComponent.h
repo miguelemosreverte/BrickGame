@@ -260,8 +260,7 @@ public:
 
 	// Updates the visible chunks for a given view position.
 	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
-		void WaterFloodIteration(FInt3& MinBrickCoordinates, FInt3& MaxBrickCoordinates);
-
+		void WaterFloodIteration();
 	// Updates the visible chunks for a given view position.
 	UFUNCTION(BlueprintCallable,Category = "Brick Grid")
 	void Update(const FVector& WorldViewPosition,float MaxDrawDistance,float MaxCollisionDistance,float MaxDesiredUpdateTime,FBrickGrid_InitRegion InitRegion);

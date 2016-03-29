@@ -388,7 +388,7 @@ void UBrickGridComponent::WaterFloodIteration()
 				New_CoordinatesOfWaterBricksWithEmptyNeighboors.Add(DownwardsNeighboorBrick);
 				InvalidateChunkComponents(DownwardsNeighboorBrick, DownwardsNeighboorBrick);
 			}
-			else
+			else if (DownwardsBrickRegion.BrickContents[DownwardsNeighboorBrickIndex] != 5)
 			{
 				for (int32 VonNeumannNeighboorsIndex = 0; VonNeumannNeighboorsIndex < 4; ++VonNeumannNeighboorsIndex)
 				{

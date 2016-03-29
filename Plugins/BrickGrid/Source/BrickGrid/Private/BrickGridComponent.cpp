@@ -388,6 +388,7 @@ void UBrickGridComponent::WaterFloodIteration(FInt3& MinBrickCoordinates, FInt3&
 				{
 					Region.BrickContents[NeighboorBrickIndex] = 5;
 					New_CoordinatesOfWaterBricksWithEmptyNeighboors.Add(NeighboorBrick);
+					InvalidateChunkComponents(NeighboorBrick, NeighboorBrick);
 				}
 			}
 		}

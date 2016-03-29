@@ -6,6 +6,17 @@
 #include "BrickCollisionComponent.h"
 #include "BrickGridComponent.h"
 
+FInt3 NeighboorBrickAtX(1, 0, 0);
+FInt3 NeighboorBrickAtMinusX(-1, 0, 0);
+FInt3 NeighboorBrickAtY(0, 1, 0);
+FInt3 NeighboorBrickAtMinusY(0, -1, 0);
+FInt3 VonNeumannNeighboors[4]{
+	NeighboorBrickAtX,
+	NeighboorBrickAtMinusX,
+	NeighboorBrickAtY,
+	NeighboorBrickAtMinusY
+};
+
 void UBrickGridComponent::Init(const FBrickGridParameters& InParameters)
 {
 	Parameters = InParameters;
@@ -177,6 +188,10 @@ void UBrickGridComponent::SetBrickMaterialArray(const FInt3& MinBrickCoordinates
 
 bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 MaterialIndex)
 {
+	if (MaterialIndex == 5)
+	{
+		CoordinatesOfWaterBricksWithEmptyNeighboors.Add(BrickCoordinates);
+	}
 	if(FInt3::All(BrickCoordinates >= MinBrickCoordinates) && FInt3::All(BrickCoordinates <= MaxBrickCoordinates) && MaterialIndex < Parameters.Materials.Num())
 	{
 		const FInt3 RegionCoordinates = BrickToRegionCoordinates(BrickCoordinates);
@@ -342,7 +357,48 @@ void UBrickGridComponent::InvalidateChunkComponents(const FInt3& MinBrickCoordin
 		}
 	}
 }
+void UBrickGridComponent::WaterFloodIteration(FInt3& MinBrickCoordinates, FInt3& MaxBrickCoordinates)
+{
+	FInt3 PossibleMinBrickCoordinates(0,0,0);
+	FInt3 PossibleMaxBrickCoordinates(0, 0, 0);
+	
+	TArray <FInt3> New_CoordinatesOfWaterBricksWithEmptyNeighboors;
+	for (int32 iterator = 0; iterator < CoordinatesOfWaterBricksWithEmptyNeighboors.Num(); ++iterator)
+	{
 
+		if (NeighboorBrickAtX.X > PossibleMaxBrickCoordinates.X)
+		{
+			PossibleMaxBrickCoordinates = NeighboorBrickAtX;
+		}
+		if (NeighboorBrickAtMinusY.Y < PossibleMinBrickCoordinates.Y)
+		{
+			PossibleMaxBrickCoordinates = NeighboorBrickAtX;
+		}
+
+		for (int32 VonNeumannNeighboorsIndex = 0; VonNeumannNeighboorsIndex < 4; ++VonNeumannNeighboorsIndex)
+		{
+			FInt3 NeighboorBrick = VonNeumannNeighboors[VonNeumannNeighboorsIndex] + CoordinatesOfWaterBricksWithEmptyNeighboors[iterator];
+			FInt3 RegionCoordinates = BrickToRegionCoordinates(NeighboorBrick);
+			int32* RegionIndex = RegionCoordinatesToIndex.Find(RegionCoordinates);
+			if (RegionIndex != NULL)
+			{
+				FBrickRegion& Region = Regions[*RegionIndex];
+				const int32 NeighboorBrickIndex = BrickCoordinatesToRegionBrickIndex(RegionCoordinates, NeighboorBrick);
+				if (Region.BrickContents[NeighboorBrickIndex] == Parameters.EmptyMaterialIndex)
+				{
+					Region.BrickContents[NeighboorBrickIndex] = 5;
+					New_CoordinatesOfWaterBricksWithEmptyNeighboors.Add(NeighboorBrick);
+				}
+			}
+		}
+	}
+
+	MinBrickCoordinates = PossibleMinBrickCoordinates;
+	MaxBrickCoordinates = PossibleMaxBrickCoordinates;
+	CoordinatesOfWaterBricksWithEmptyNeighboors = New_CoordinatesOfWaterBricksWithEmptyNeighboors;
+	UE_LOG(LogStats, Log, TEXT("LALALA %d"), CoordinatesOfWaterBricksWithEmptyNeighboors.Num());
+
+}
 void UBrickGridComponent::Update(const FVector& WorldViewPosition,float MaxDrawDistance,float MaxCollisionDistance,float MaxDesiredUpdateTime,FBrickGrid_InitRegion OnInitRegion)
 {
 	const FVector LocalViewPosition = GetComponentTransform().InverseTransformPosition(WorldViewPosition);

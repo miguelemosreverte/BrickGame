@@ -260,7 +260,7 @@ public:
 
 	// Updates the visible chunks for a given view position.
 	UFUNCTION(BlueprintCallable, Category = "Brick Grid")
-		void WaterFloodIteration();
+		void WaterFloodIteration(FInt3& MinBrickCoordinates, FInt3& MaxBrickCoordinates);
 
 	// Updates the visible chunks for a given view position.
 	UFUNCTION(BlueprintCallable,Category = "Brick Grid")
@@ -303,7 +303,27 @@ public:
 	{
 		return FInt3::SignedShiftRight(BrickCoordinates,Parameters.BricksPerRegionLog2);
 	}
-
+	inline FInt3 RegionBrickIndexToSubregionBrickCoordinates(const uint32 BrickIndex) const
+	{
+		FInt3 BrickCoordinates;
+		for (int32 LocalZ = BricksPerRegion.Z - 1; LocalZ >= 0; --LocalZ)
+		{
+			for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
+			{
+				for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
+				{
+					int32 Index = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;
+					if (Index == BrickIndex)
+					{
+						BrickCoordinates.X = LocalX;
+						BrickCoordinates.Y = LocalY;
+						BrickCoordinates.Z = LocalZ;
+					}
+				}
+			}
+		}
+		return BrickCoordinates;
+	}
 	// USceneComponent interface.
 	virtual FBoxSphereBounds CalcBounds(const FTransform & LocalToWorld) const override;
 	// UActorComponent interface.
@@ -337,10 +357,10 @@ private:
 	{
 		return (((SubregionBrickCoordinates.Y << Parameters.BricksPerRegionLog2.X) + SubregionBrickCoordinates.X) << Parameters.BricksPerRegionLog2.Z) + SubregionBrickCoordinates.Z;
 	}
-	inline uint32 BrickCoordinatesToRegionBrickIndex(const FInt3& RegionCoordinates,const FInt3& BrickCoordinates) const
+	inline uint32 BrickCoordinatesToRegionBrickIndex(const FInt3& RegionCoordinates, const FInt3& BrickCoordinates) const
 	{
 		return SubregionBrickCoordinatesToRegionBrickIndex(BrickCoordinates - (RegionCoordinates << Parameters.BricksPerRegionLog2));
-		
+
 	}
 
 	// Updates the non-empty height map for a single region.

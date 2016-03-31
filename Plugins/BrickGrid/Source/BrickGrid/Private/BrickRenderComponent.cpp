@@ -482,6 +482,18 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][FaceVertexIndex]);
 										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
 										FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+										if (BrickMaterial == 5)
+										{
+											if (FaceIndex == 5)
+											{
+												SceneProxy->VertexBuffer.Vertices[VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]].AmbientOcclusionFactor = 1;
+											}
+											else
+											{
+												SceneProxy->VertexBuffer.Vertices[VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]].AmbientOcclusionFactor = 0;
+											}
+										}
+
 									}
 
 									// Write the indices for the brick face.

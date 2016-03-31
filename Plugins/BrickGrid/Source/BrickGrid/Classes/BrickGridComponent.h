@@ -241,7 +241,6 @@ public:
 	// Reads the brick at the given coordinates.
 	UFUNCTION(BlueprintCallable,Category = "Brick Grid")
 	FBrick GetBrick(const FInt3& BrickCoordinates) const;
-
 	void GetBrickMaterialArray(const FInt3& MinBrickCoordinates,const FInt3& MaxBrickCoordinates,TArray<uint8>& OutBrickMaterials) const;
 	void SetBrickMaterialArray(const FInt3& MinBrickCoordinates,const FInt3& MaxBrickCoordinates,const TArray<uint8>& BrickMaterials);
 

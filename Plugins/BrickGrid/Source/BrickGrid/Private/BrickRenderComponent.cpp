@@ -486,9 +486,9 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 										{
 											if (FaceIndex == 5)
 											{
-												SceneProxy->VertexBuffer.Vertices[VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]].AmbientOcclusionFactor = 1;
+												SceneProxy->VertexBuffer.Vertices[VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]].AmbientOcclusionFactor = 128;
 											}
-											else
+											else if (SceneProxy->VertexBuffer.Vertices[VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]].AmbientOcclusionFactor != 128)
 											{
 												SceneProxy->VertexBuffer.Vertices[VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]].AmbientOcclusionFactor = 0;
 											}

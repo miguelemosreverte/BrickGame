@@ -47,7 +47,7 @@ struct FBrickVertex
 	uint8 Y;
 	uint8 Z;
 	uint8 AmbientOcclusionFactor;
-
+	
 	FBrickVertex() {}
 	FBrickVertex(FInt3 InCoordinates,uint8 InAmbientOcclusionFactor)
 	: X(InCoordinates.X), Y(InCoordinates.Y), Z(InCoordinates.Z), AmbientOcclusionFactor(InAmbientOcclusionFactor)
@@ -187,7 +187,7 @@ public:
 
 	FBrickChunkVertexBuffer VertexBuffer;
 	FBrickChunkIndexBuffer IndexBuffer;
-	FBrickChunkVertexFactory VertexFactories[6];
+	FBrickChunkVertexFactory VertexFactories[7];
 
 	struct FElement
 	{
@@ -221,7 +221,7 @@ public:
 		});
 		BeginInitResource(&VertexBuffer);
 		BeginInitResource(&IndexBuffer);
-		for(uint32 FaceIndex = 0;FaceIndex < 6;++FaceIndex)
+		for(uint32 FaceIndex = 0;FaceIndex < 7;++FaceIndex)
 		{
 			VertexFactories[FaceIndex].Init(VertexBuffer,this,FaceIndex);
 			BeginInitResource(&VertexFactories[FaceIndex]);
@@ -232,7 +232,7 @@ public:
 	{
 		VertexBuffer.ReleaseResource();
 		IndexBuffer.ReleaseResource();
-		for(uint32 FaceIndex = 0;FaceIndex < 6;++FaceIndex)
+		for(uint32 FaceIndex = 0;FaceIndex < 7;++FaceIndex)
 		{
 			VertexFactories[FaceIndex].ReleaseResource();
 		}
@@ -301,6 +301,7 @@ public:
 	void InitMeshBatch(FMeshBatch& OutBatch,int32 ElementIndex,FMaterialRenderProxy* WireframeMaterialFace) const
 	{
 		const FElement& Element = Elements[ElementIndex];
+
 		OutBatch.bWireframe = WireframeMaterialFace != NULL;
 		OutBatch.VertexFactory = &VertexFactories[Element.FaceIndex];
 		OutBatch.MaterialRenderProxy = WireframeMaterialFace ? WireframeMaterialFace : Materials[Element.MaterialIndex]->GetRenderProxy(IsSelected());
@@ -426,7 +427,7 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 				{
 					for(int32 LocalVertexZ = 0; LocalVertexZ < LocalVertexDim.Z; ++LocalVertexZ)
 					{
-						const FInt3 LocalVertexCoordinates(LocalVertexX,LocalVertexY,LocalVertexZ);
+						FInt3 LocalVertexCoordinates(LocalVertexX,LocalVertexY,LocalVertexZ);
 						uint32 HasAdjacentBrickOfClass[(int32)EBrickClass::Count] = { 0 };
 
 						for(uint32 AdjacentBrickIndex = 0;AdjacentBrickIndex < 8;++AdjacentBrickIndex)
@@ -437,7 +438,6 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 							const uint32 BrickClass = (uint32)BrickClassByMaterial[LocalBrickMaterials[LocalBrickIndex]];
 							HasAdjacentBrickOfClass[BrickClass] = 1;
 						}
-
 						if ((HasAdjacentBrickOfClass[(int32)EBrickClass::Opaque]
 							+ HasAdjacentBrickOfClass[(int32)EBrickClass::Translucent]
 							+ HasAdjacentBrickOfClass[(int32)EBrickClass::Empty]) > 1)
@@ -451,6 +451,12 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 									LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
 								#endif
 								);
+							const FInt3 LocalBrickCoordinates = LocalVertexCoordinates + LocalBrickExpansion - FInt3::Scalar(1);
+							const uint32 LocalBrickIndex = (LocalBrickCoordinates.Y * LocalBricksDim.X + LocalBrickCoordinates.X) * LocalBricksDim.Z + LocalBrickCoordinates.Z;
+							if (LocalBrickMaterials[LocalBrickIndex] == 9)
+							{
+								SavedVerticesCoordinates.Emplace(LocalVertexCoordinates);
+							}
 						}
 						else
 						{
@@ -459,7 +465,7 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 					}
 				}
 			}
-
+			int iterator = 0;
 			// Iterate over each brick in the chunk.
 			for(int32 LocalBrickY = LocalBrickExpansion.Y; LocalBrickY < Grid->BricksPerRenderChunk.Y + LocalBrickExpansion.Y; ++LocalBrickY)
 			{
@@ -490,17 +496,47 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][FaceVertexIndex]);
 										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
 										FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
-									}
-
+									}	
+									
 									// Write the indices for the brick face.
-									FFaceBatch& FaceBatch = MaterialBatches[BrickMaterial].FaceBatches[FaceIndex];
+										FFaceBatch& FaceBatch = MaterialBatches[BrickMaterial].FaceBatches[FaceIndex];
 									uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
-									*FaceVertexIndex++ = FaceVertexIndices[0];
-									*FaceVertexIndex++ = FaceVertexIndices[1];
-									*FaceVertexIndex++ = FaceVertexIndices[2];
-									*FaceVertexIndex++ = FaceVertexIndices[0];
-									*FaceVertexIndex++ = FaceVertexIndices[2];
-									*FaceVertexIndex++ = FaceVertexIndices[3];
+										*FaceVertexIndex++ = FaceVertexIndices[0];
+										*FaceVertexIndex++ = FaceVertexIndices[1];
+										*FaceVertexIndex++ = FaceVertexIndices[2];
+										*FaceVertexIndex++ = FaceVertexIndices[0];
+										*FaceVertexIndex++ = FaceVertexIndices[2];
+										*FaceVertexIndex++ = FaceVertexIndices[3];
+
+									if (BrickMaterial == 9 && FaceIndex == 5)
+									{
+										uint16* FaceVertexIndex_2 = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(3)];
+
+										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][2]);
+										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
+										FInt3 TwoZ(0,0,2);
+										FInt3 TwoY(0, 2, 0);
+										*FaceVertexIndex_2++ = SceneProxy->VertexBuffer.Vertices.Num();
+										VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+										new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+											SavedVerticesCoordinates[iterator],
+											LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+										);
+										*FaceVertexIndex_2++ = SceneProxy->VertexBuffer.Vertices.Num();
+										VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+										new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+											SavedVerticesCoordinates[iterator] + TwoY,
+											LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+										);
+										*FaceVertexIndex_2++ = SceneProxy->VertexBuffer.Vertices.Num();
+										VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
+										new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
+											SavedVerticesCoordinates[iterator] + TwoZ,
+											LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
+										);
+
+										iterator += 1;
+									}
 								}
 							}
 						}
@@ -541,10 +577,30 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 					if (FaceBatch.Indices.Num() > 0)
 					{
 						FBrickChunkSceneProxy::FElement& Element = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
-						Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num();
-						Element.NumPrimitives = FaceBatch.Indices.Num() / 3;
+						if (BrickMaterialIndex == 9 && FaceIndex == 5)
+						{
+							Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num();
+							Element.NumPrimitives = FaceBatch.Indices.Num() / 3 - 1;
+						}
+						else
+						{
+							Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num();
+							Element.NumPrimitives = FaceBatch.Indices.Num() / 3;
+						}
 						Element.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
 						Element.FaceIndex = FaceIndex;
+
+
+						//ADDED
+						if (BrickMaterialIndex == 9 && FaceIndex == 5)
+						{
+							FBrickChunkSceneProxy::FElement& Element = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
+							Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num() + 6;
+							Element.NumPrimitives = 1;
+							Element.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
+							Element.FaceIndex = 6;
+
+						}
 
 						// Append the batch's indices to the index buffer.
 						SceneProxy->IndexBuffer.Indices.Append(FaceBatch.Indices);

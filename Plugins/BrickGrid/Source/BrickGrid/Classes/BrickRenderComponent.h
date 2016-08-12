@@ -1,8 +1,11 @@
 // Copyright 2014, Andrew Scheidecker. All Rights Reserved. 
 
 #pragma once
+
+#include <DynamicMeshBuilder.h>
 #include "BrickGridComponent.h"
 #include "BrickRenderComponent.generated.h"
+
 
 /** Represents rendering for a chunk of a BrickGridComponent. */
 UCLASS(hidecategories=(Object,LOD,Physics), editinlinenew, ClassGroup=Rendering)

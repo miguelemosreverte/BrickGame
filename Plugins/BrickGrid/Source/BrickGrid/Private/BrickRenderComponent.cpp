@@ -47,7 +47,7 @@ struct FBrickVertex
 	uint8 Y;
 	uint8 Z;
 	uint8 AmbientOcclusionFactor;
-	
+
 	FBrickVertex() {}
 	FBrickVertex(FInt3 InCoordinates,uint8 InAmbientOcclusionFactor)
 	: X(InCoordinates.X), Y(InCoordinates.Y), Z(InCoordinates.Z), AmbientOcclusionFactor(InAmbientOcclusionFactor)
@@ -68,6 +68,24 @@ public:
 			// Copy the vertex data into the vertex buffer.
 			void* VertexBufferData = RHILockVertexBuffer(VertexBufferRHI, 0, Vertices.Num() * sizeof(FBrickVertex), RLM_WriteOnly);
 			FMemory::Memcpy(VertexBufferData, Vertices.GetData(), Vertices.Num() * sizeof(FBrickVertex));
+			RHIUnlockVertexBuffer(VertexBufferRHI);
+		}
+	}
+};
+/** Complex Vertex Buffer */
+class FGeneratedMeshVertexBuffer : public FVertexBuffer
+{
+public:
+	TArray<FDynamicMeshVertex> Vertices;
+	virtual void InitRHI()
+	{
+		if (Vertices.Num() > 0)
+		{
+			FRHIResourceCreateInfo CreateInfo;
+			VertexBufferRHI = RHICreateVertexBuffer(Vertices.Num() * sizeof(FDynamicMeshVertex), BUF_Static, CreateInfo);
+			// Copy the vertex data into the vertex buffer.
+			void* VertexBufferData = RHILockVertexBuffer(VertexBufferRHI, 0, Vertices.Num() * sizeof(FDynamicMeshVertex), RLM_WriteOnly);
+			FMemory::Memcpy(VertexBufferData, Vertices.GetData(), Vertices.Num() * sizeof(FDynamicMeshVertex));
 			RHIUnlockVertexBuffer(VertexBufferRHI);
 		}
 	}
@@ -121,6 +139,29 @@ TGlobalResource<FBrickChunkTangentBuffer> TangentBuffer;
 class FBrickChunkVertexFactory : public FLocalVertexFactory
 {
 public:
+	void Init(const FGeneratedMeshVertexBuffer& VertexBuffer, const FPrimitiveSceneProxy* InPrimitiveSceneProxy)
+	{
+		PrimitiveSceneProxy = InPrimitiveSceneProxy;
+		FaceIndex = 6;
+
+		// Initialize the vertex factory's stream components.
+		DataType NewData;
+
+		NewData.PositionComponent = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(&VertexBuffer, FDynamicMeshVertex, Position, VET_Float3);
+		NewData.TextureCoordinates.Add(FVertexStreamComponent(&VertexBuffer, STRUCT_OFFSET(FDynamicMeshVertex, TextureCoordinate), sizeof(FDynamicMeshVertex), VET_Float2));
+		NewData.ColorComponent = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(&VertexBuffer, FDynamicMeshVertex, Color, VET_Color);
+
+		NewData.TangentBasisComponents[0] = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(&VertexBuffer, FDynamicMeshVertex, TangentX, VET_PackedNormal);
+		NewData.TangentBasisComponents[1] = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(&VertexBuffer, FDynamicMeshVertex, TangentZ, VET_PackedNormal);
+		check(!IsInRenderingThread());
+		ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+			InitBrickChunkVertexFactoryComplex,
+			FBrickChunkVertexFactory*, VertexFactory, this,
+			DataType, NewData, NewData,
+			{
+				VertexFactory->SetData(NewData);
+			});
+	}
 
 	void Init(const FBrickChunkVertexBuffer& VertexBuffer,const FPrimitiveSceneProxy* InPrimitiveSceneProxy,uint8 InFaceIndex)
 	{
@@ -129,6 +170,7 @@ public:
 
 		// Initialize the vertex factory's stream components.
 		DataType NewData;
+
 		NewData.PositionComponent = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(&VertexBuffer, FBrickVertex, X, VET_UByte4N);
 		NewData.TextureCoordinates.Add(STRUCTMEMBER_VERTEXSTREAMCOMPONENT(&VertexBuffer, FBrickVertex, X, VET_UByte4N));
 		NewData.ColorComponent = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(&VertexBuffer, FBrickVertex, X, VET_Color);
@@ -144,6 +186,7 @@ public:
 			VertexFactory->SetData(NewData);
 		});
 	}
+	
 
 	#if UE4_HAS_IMPROVED_MESHBATCH_ELEMENT_VISIBILITY
 		virtual uint64 GetStaticBatchElementVisibility(const class FSceneView& View, const struct FMeshBatch* Batch) const override
@@ -185,6 +228,7 @@ class FBrickChunkSceneProxy : public FPrimitiveSceneProxy
 {
 public:
 
+	FGeneratedMeshVertexBuffer VertexBufferComplex;
 	FBrickChunkVertexBuffer VertexBuffer;
 	FBrickChunkIndexBuffer IndexBuffer;
 	FBrickChunkVertexFactory VertexFactories[7];
@@ -220,19 +264,25 @@ public:
 			FTaskGraphInterface::Get().WaitUntilTaskCompletes(SetupCompletionEvent,ENamedThreads::RenderThread);
 		});
 		BeginInitResource(&VertexBuffer);
+		BeginInitResource(&VertexBufferComplex);
 		BeginInitResource(&IndexBuffer);
-		for(uint32 FaceIndex = 0;FaceIndex < 7;++FaceIndex)
+
+		for (uint32 FaceIndex = 0; FaceIndex < 6; ++FaceIndex)
 		{
-			VertexFactories[FaceIndex].Init(VertexBuffer,this,FaceIndex);
-			BeginInitResource(&VertexFactories[FaceIndex]);
+				VertexFactories[FaceIndex].Init(VertexBuffer, this, FaceIndex);
+				BeginInitResource(&VertexFactories[FaceIndex]);
 		}
+
+		VertexFactories[6].Init(VertexBufferComplex, this);
+		BeginInitResource(&VertexFactories[6]);
 	}
 
 	virtual ~FBrickChunkSceneProxy()
 	{
 		VertexBuffer.ReleaseResource();
-		IndexBuffer.ReleaseResource();
-		for(uint32 FaceIndex = 0;FaceIndex < 7;++FaceIndex)
+		VertexBufferComplex.ReleaseResource();
+		IndexBuffer.ReleaseResource(); 
+		for (uint32 FaceIndex = 0; FaceIndex < 7; ++FaceIndex)
 		{
 			VertexFactories[FaceIndex].ReleaseResource();
 		}
@@ -256,6 +306,7 @@ public:
 		// Draw the mesh elements in each view they are visible.
 		for(int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
 		{
+			
 			FMeshBatch& Batch = Collector.AllocateMesh();
 			InitMeshBatch(Batch,ElementIndex,ViewFamily.EngineShowFlags.Wireframe ? WireframeMaterialFace : NULL);
 
@@ -303,6 +354,10 @@ public:
 		const FElement& Element = Elements[ElementIndex];
 
 		OutBatch.bWireframe = WireframeMaterialFace != NULL;
+		if (Elements[ElementIndex].FaceIndex == 6)
+		{
+			UE_LOG(LogStats, Log, TEXT("UBrickRenderCompasdasd"));
+		}
 		OutBatch.VertexFactory = &VertexFactories[Element.FaceIndex];
 		OutBatch.MaterialRenderProxy = WireframeMaterialFace ? WireframeMaterialFace : Materials[Element.MaterialIndex]->GetRenderProxy(IsSelected());
 		OutBatch.ReverseCulling = IsLocalToWorldDeterminantNegative();
@@ -315,7 +370,10 @@ public:
 		OutBatch.Elements[0].FirstIndex = Element.FirstIndex;
 		OutBatch.Elements[0].NumPrimitives = Element.NumPrimitives;
 		OutBatch.Elements[0].MinVertexIndex = 0;
-		OutBatch.Elements[0].MaxVertexIndex = VertexBuffer.Vertices.Num() - 1;
+		if (Element.FaceIndex == 6)
+			OutBatch.Elements[0].MaxVertexIndex = VertexBufferComplex.Vertices.Num() - 1;
+		else
+			OutBatch.Elements[0].MaxVertexIndex = VertexBuffer.Vertices.Num() - 1;
 		OutBatch.Elements[0].IndexBuffer = &IndexBuffer;
 		OutBatch.Elements[0].PrimitiveUniformBuffer = PrimitiveUniformBuffer;
 		OutBatch.Elements[0].UserIndex = Element.FaceIndex;
@@ -510,30 +568,54 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 									if (BrickMaterial == 9 && FaceIndex == 5)
 									{
-										uint16* FaceVertexIndex_2 = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(3)];
+										uint16* FaceVertexIndex_2 = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
 
 										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][2]);
 										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
-										FInt3 TwoZ(0,0,2);
-										FInt3 TwoY(0, 2, 0);
+										FVector TwoZ(0.0, 0.0, 1.5);
+										FVector TwoY(0.0, 2.0, 1.5);
+										FVector Position;
+										/*FVector Random;
+										Random.X = FMath::FRandRange(1, 5.0);
+										Random.Y = FMath::FRandRange(2, 5.0);
+										Random.Z = FMath::FRandRange(2, 5.0);
+										Position.X = Random.X + SavedVerticesCoordinates[iterator].X;
+										Position.Y = Random.Y + SavedVerticesCoordinates[iterator].Y;
+										Position.Z = Random.Z + SavedVerticesCoordinates[iterator].Z;*/
+
+										Position.X = SavedVerticesCoordinates[iterator].X;
+										Position.Y = SavedVerticesCoordinates[iterator].Y;
+										Position.Z = SavedVerticesCoordinates[iterator].Z;
+
+										*FaceVertexIndex_2++ = SceneProxy->VertexBufferComplex.Vertices.Num();
+										new(SceneProxy->VertexBufferComplex.Vertices) FDynamicMeshVertex(Position);
+										*FaceVertexIndex_2++ = SceneProxy->VertexBufferComplex.Vertices.Num();
+										new(SceneProxy->VertexBufferComplex.Vertices) FDynamicMeshVertex(Position + TwoY);
+										*FaceVertexIndex_2++ = SceneProxy->VertexBufferComplex.Vertices.Num();
+										new(SceneProxy->VertexBufferComplex.Vertices) FDynamicMeshVertex(Position+TwoZ);
+
+
+
+										FInt3 TwoZ_FInt3(0, 0, 1);
+										FInt3 TwoY_FInt3(0, 2, 1);
 										*FaceVertexIndex_2++ = SceneProxy->VertexBuffer.Vertices.Num();
 										VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
 										new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
 											SavedVerticesCoordinates[iterator],
 											LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
-										);
+											 );
 										*FaceVertexIndex_2++ = SceneProxy->VertexBuffer.Vertices.Num();
 										VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
 										new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
-											SavedVerticesCoordinates[iterator] + TwoY,
+											SavedVerticesCoordinates[iterator] + TwoY_FInt3,
 											LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
-										);
+											 );
 										*FaceVertexIndex_2++ = SceneProxy->VertexBuffer.Vertices.Num();
 										VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
 										new(SceneProxy->VertexBuffer.Vertices) FBrickVertex(
-											SavedVerticesCoordinates[iterator] + TwoZ,
+											SavedVerticesCoordinates[iterator] + TwoZ_FInt3,
 											LocalVertexAmbientFactors[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z]
-										);
+											);
 
 										iterator += 1;
 									}
@@ -574,6 +656,7 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 				for(uint32 FaceIndex = 0;FaceIndex < 6;++FaceIndex)
 				{
 					const FFaceBatch& FaceBatch = MaterialBatches[BrickMaterialIndex].FaceBatches[FaceIndex];
+					int ExtraIndices = 0;
 					if (FaceBatch.Indices.Num() > 0)
 					{
 						FBrickChunkSceneProxy::FElement& Element = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
@@ -589,13 +672,19 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 						}
 						Element.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
 						Element.FaceIndex = FaceIndex;
-
+						ExtraIndices = 6;
 
 						//ADDED
 						if (BrickMaterialIndex == 9 && FaceIndex == 5)
 						{
+							FBrickChunkSceneProxy::FElement& Element_Cmplex = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
+							Element_Cmplex.FirstIndex = SceneProxy->IndexBuffer.Indices.Num() + ExtraIndices;
+							Element_Cmplex.NumPrimitives = 1;
+							Element_Cmplex.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
+							Element_Cmplex.FaceIndex = 6;
+
 							FBrickChunkSceneProxy::FElement& Element = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
-							Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num() + 6;
+							Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num() + ExtraIndices + 3;
 							Element.NumPrimitives = 1;
 							Element.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
 							Element.FaceIndex = 6;
@@ -618,7 +707,6 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 	}
 
 	UE_LOG(LogStats,Log,TEXT("UBrickRenderComponent::CreateSceneProxy took %fms"),1000.0f * float(FPlatformTime::Seconds() - StartTime));
-
 	return SceneProxy;
 }
 
@@ -629,3 +717,5 @@ FBoxSphereBounds UBrickRenderComponent::CalcBounds(const FTransform & LocalToWor
 	NewBounds.SphereRadius = NewBounds.BoxExtent.Size();
 	return NewBounds.TransformBy(LocalToWorld);
 }
+
+

@@ -139,11 +139,15 @@ TGlobalResource<FBrickChunkTangentBuffer> TangentBuffer;
 class FBrickChunkVertexFactory : public FLocalVertexFactory
 {
 public:
+
+	FBrickChunkVertexFactory()
+	{}
+
 	void Init(const FGeneratedMeshVertexBuffer& InVertexBufferComplex, const FPrimitiveSceneProxy* InPrimitiveSceneProxy)
 	{
 		PrimitiveSceneProxy = InPrimitiveSceneProxy;
 		FaceIndex = 6;
-
+		
 		// Initialize the vertex factory's stream components.
 		DataType NewData;
 
@@ -161,6 +165,27 @@ public:
 			{
 				VertexFactory->SetData(NewData);
 			});
+		
+		/*
+		check(!IsInRenderingThread());
+
+		ENQUEUE_UNIQUE_RENDER_COMMAND_TWOPARAMETER(
+			InitBrickChunkVertexFactoryComplex,
+			FBrickChunkVertexFactory*, VertexFactory, this,
+			const FGeneratedMeshVertexBuffer*, VertexBuffer, VertexBuffer,
+			{
+				// Initialize the vertex factory's stream components.
+				DataType NewData;
+				NewData.PositionComponent = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(VertexBuffer, FDynamicMeshVertex, Position, VET_Float3);
+				NewData.TextureCoordinates.Add(
+					FVertexStreamComponent(VertexBuffer, STRUCT_OFFSET(FDynamicMeshVertex, TextureCoordinate), sizeof(FDynamicMeshVertex), VET_Float2)
+				);
+				NewData.TangentBasisComponents[0] = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(VertexBuffer, FDynamicMeshVertex, TangentX, VET_PackedNormal);
+				NewData.TangentBasisComponents[1] = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(VertexBuffer, FDynamicMeshVertex, TangentZ, VET_PackedNormal);
+				NewData.ColorComponent = STRUCTMEMBER_VERTEXSTREAMCOMPONENT(VertexBuffer, FDynamicMeshVertex, Color, VET_Color);
+				VertexFactory->SetData(NewData);
+			});*/
+	
 	}
 
 	void Init(const FBrickChunkVertexBuffer& InVertexBuffer,const FPrimitiveSceneProxy* InPrimitiveSceneProxy,uint8 InFaceIndex)
@@ -231,6 +256,7 @@ public:
 	FGeneratedMeshVertexBuffer VertexBufferComplex;
 	FBrickChunkVertexBuffer VertexBuffer;
 	FBrickChunkIndexBuffer IndexBuffer;
+	FBrickChunkIndexBuffer IndexBufferComplex;
 	FBrickChunkVertexFactory VertexFactories[7];
 
 	struct FElement
@@ -266,6 +292,7 @@ public:
 		BeginInitResource(&VertexBuffer);
 		BeginInitResource(&VertexBufferComplex);
 		BeginInitResource(&IndexBuffer);
+		BeginInitResource(&IndexBufferComplex);
 
 		for (uint32 FaceIndex = 0; FaceIndex < 7; ++FaceIndex)
 		{
@@ -281,7 +308,8 @@ public:
 	{
 		VertexBuffer.ReleaseResource();
 		VertexBufferComplex.ReleaseResource();
-		IndexBuffer.ReleaseResource(); 
+		IndexBuffer.ReleaseResource();
+		IndexBufferComplex.ReleaseResource();
 		for (uint32 FaceIndex = 0; FaceIndex < 7; ++FaceIndex)
 		{
 			VertexFactories[FaceIndex].ReleaseResource();
@@ -354,7 +382,7 @@ public:
 	virtual uint32 GetMemoryFootprint(void) const { return(sizeof(*this) + GetAllocatedSize()); }
 	uint32 GetAllocatedSize( void ) const { return( FPrimitiveSceneProxy::GetAllocatedSize() ); }
 
-	void InitMeshBatch(FMeshBatch& OutBatch,int32 ElementIndex,FMaterialRenderProxy* WireframeMaterialFace) const
+	void InitMeshBatch(FMeshBatch& OutBatch, int32 ElementIndex, FMaterialRenderProxy* WireframeMaterialFace) const
 	{
 		const FElement& Element = Elements[ElementIndex];
 
@@ -369,17 +397,23 @@ public:
 		OutBatch.Type = PT_TriangleList;
 		OutBatch.DepthPriorityGroup = SDPG_World;
 		OutBatch.CastShadow = true;
-		#if UE4_HAS_IMPROVED_MESHBATCH_ELEMENT_VISIBILITY
-			OutBatch.bRequiresPerElementVisibility = true;
-		#endif
+#if UE4_HAS_IMPROVED_MESHBATCH_ELEMENT_VISIBILITY
+		OutBatch.bRequiresPerElementVisibility = true;
+#endif
 		OutBatch.Elements[0].FirstIndex = Element.FirstIndex;
 		OutBatch.Elements[0].NumPrimitives = Element.NumPrimitives;
 		OutBatch.Elements[0].MinVertexIndex = 0;
+
 		if (Element.FaceIndex == 6)
+		{
 			OutBatch.Elements[0].MaxVertexIndex = VertexBufferComplex.Vertices.Num() - 1;
+			OutBatch.Elements[0].IndexBuffer = &IndexBufferComplex;
+		}
 		else
+		{
 			OutBatch.Elements[0].MaxVertexIndex = VertexBuffer.Vertices.Num() - 1;
-		OutBatch.Elements[0].IndexBuffer = &IndexBuffer;
+			OutBatch.Elements[0].IndexBuffer = &IndexBuffer;
+		}
 		OutBatch.Elements[0].PrimitiveUniformBuffer = PrimitiveUniformBuffer;
 		OutBatch.Elements[0].UserIndex = Element.FaceIndex;
 	}
@@ -468,7 +502,7 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 			};
 			struct FMaterialBatch
 			{
-				FFaceBatch FaceBatches[6];
+				FFaceBatch FaceBatches[7];
 			};
 			TArray<FMaterialBatch> MaterialBatches;
 			MaterialBatches.Init(FMaterialBatch(),Grid->Parameters.Materials.Num());
@@ -516,7 +550,7 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 								);
 							const FInt3 LocalBrickCoordinates = LocalVertexCoordinates + LocalBrickExpansion - FInt3::Scalar(1);
 							const uint32 LocalBrickIndex = (LocalBrickCoordinates.Y * LocalBricksDim.X + LocalBrickCoordinates.X) * LocalBricksDim.Z + LocalBrickCoordinates.Z;
-							if (LocalBrickMaterials[LocalBrickIndex] == 9)
+							if (LocalBrickMaterials[LocalBrickIndex] == 1)
 							{
 								SavedVerticesCoordinates.Emplace(LocalVertexCoordinates);
 							}
@@ -541,9 +575,13 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 						const uint8 BrickMaterial = LocalBrickMaterials[LocalBrickIndex];
 						if (BrickMaterial != EmptyMaterialIndex)
 						{
+						//if (BrickMaterial == 1)
+						//{
+
 							const FInt3 RelativeBrickCoordinates = FInt3(LocalBrickX,LocalBrickY,LocalBrickZ) - LocalBrickExpansion;
 							for(uint32 FaceIndex = 0; FaceIndex < 6; ++FaceIndex)
 							{
+								
 								// Only draw faces that face empty bricks.
 								const int32 FacingLocalBrickX = LocalBrickX + FaceNormals[FaceIndex].X;
 								const int32 FacingLocalBrickY = LocalBrickY + FaceNormals[FaceIndex].Y;
@@ -563,30 +601,32 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 									
 									// Write the indices for the brick face.
 										FFaceBatch& FaceBatch = MaterialBatches[BrickMaterial].FaceBatches[FaceIndex];
-									uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
+										uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
 										*FaceVertexIndex++ = FaceVertexIndices[0];
 										*FaceVertexIndex++ = FaceVertexIndices[1];
 										*FaceVertexIndex++ = FaceVertexIndices[2];
 										*FaceVertexIndex++ = FaceVertexIndices[0];
 										*FaceVertexIndex++ = FaceVertexIndices[2];
 										*FaceVertexIndex++ = FaceVertexIndices[3];
-
-									if (BrickMaterial == 9 && FaceIndex == 5)
+									
+									if (BrickMaterial == 1 && FaceIndex == 5)
 									{
-										uint16* FaceVertexIndex_2 = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(3)];
+
+										FFaceBatch& FaceBatch_2 = MaterialBatches[BrickMaterial].FaceBatches[6];
+										uint16* FaceVertexIndex_2 = &FaceBatch_2.Indices[FaceBatch_2.Indices.AddUninitialized(3)];
 
 										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][2]);
 										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
-										FVector TwoZ(2.5, 0.0, 1.5);
-										FVector TwoY(0.0, 2.5, -1.5);
+										FVector TwoZ(1.5, 1.5, 0);
+										FVector TwoY(-1.5, -1.5, 0);
 										FVector Position;
-										/*FVector Random;
-										Random.X = FMath::FRandRange(1, 5.0);
-										Random.Y = FMath::FRandRange(2, 5.0);
-										Random.Z = FMath::FRandRange(2, 5.0);
+										FVector Random;
+										Random.X = FMath::FRandRange(0, 2.0);
+										Random.Y = FMath::FRandRange(0, 2.0);
+										Random.Z = FMath::FRandRange(0, 2.0);
 										Position.X = Random.X + SavedVerticesCoordinates[iterator].X;
 										Position.Y = Random.Y + SavedVerticesCoordinates[iterator].Y;
-										Position.Z = Random.Z + SavedVerticesCoordinates[iterator].Z;*/
+										Position.Z = SavedVerticesCoordinates[iterator].Z;
 
 										Position.X = SavedVerticesCoordinates[iterator].X;
 										Position.Y = SavedVerticesCoordinates[iterator].Y;
@@ -631,18 +671,19 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 				}
 			}
 
-			int ExtraIndices = 0;
-			int ExtraIndices_V2 = 0;
 			// Create mesh elements for each batch.
 			int32 NumIndices = 0;
+			int32 NumIndicesComplex = 0;
 			for (int32 BrickMaterialIndex = 0; BrickMaterialIndex < MaterialBatches.Num(); ++BrickMaterialIndex)
 			{
 				for(uint32 FaceIndex = 0;FaceIndex < 6;++FaceIndex)
 				{
 					NumIndices += MaterialBatches[BrickMaterialIndex].FaceBatches[FaceIndex].Indices.Num();
 				}
+				NumIndicesComplex += MaterialBatches[BrickMaterialIndex].FaceBatches[6].Indices.Num();
 			}
 			SceneProxy->IndexBuffer.Indices.Empty(NumIndices);
+			SceneProxy->IndexBufferComplex.Indices.Empty(NumIndicesComplex);
 			for(int32 BrickMaterialIndex = 0; BrickMaterialIndex < MaterialBatches.Num(); ++BrickMaterialIndex)
 			{
 				UMaterialInterface* SurfaceMaterial = Grid->Parameters.Materials[BrickMaterialIndex].SurfaceMaterial;
@@ -660,39 +701,32 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 				}
 				const int32 TopProxyMaterialIndex = OverrideTopSurfaceMaterial ? SceneProxy->Materials.AddUnique(OverrideTopSurfaceMaterial) : ProxyMaterialIndex;
 
-				for(uint32 FaceIndex = 0;FaceIndex < 6;++FaceIndex)
+				for(uint32 FaceIndex = 0;FaceIndex < 7;++FaceIndex)
 				{
 					const FFaceBatch& FaceBatch = MaterialBatches[BrickMaterialIndex].FaceBatches[FaceIndex];
 					if (FaceBatch.Indices.Num() > 0)
 					{
-						FBrickChunkSceneProxy::FElement& Element = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
-						Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num() + ExtraIndices_V2;
-						Element.NumPrimitives = FaceBatch.Indices.Num() / 3;
+						if (FaceIndex < 6)
+						{
+							FBrickChunkSceneProxy::FElement& Element = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
+							Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num();
+							Element.NumPrimitives = FaceBatch.Indices.Num() / 3;
 
-						Element.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
-						Element.FaceIndex = FaceIndex;
-						ExtraIndices = 6;
-						ExtraIndices_V2 = 0;
-						//ADDED
-						if (BrickMaterialIndex == 9 && FaceIndex == 5)
+							Element.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
+							Element.FaceIndex = FaceIndex;
+
+							SceneProxy->IndexBuffer.Indices.Append(FaceBatch.Indices);
+						}
+						else
 						{
 							FBrickChunkSceneProxy::FElement& Element_Complex = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
-							Element_Complex.FirstIndex = SceneProxy->IndexBuffer.Indices.Num() + ExtraIndices;
+							Element_Complex.FirstIndex = SceneProxy->IndexBufferComplex.Indices.Num();
 							Element_Complex.NumPrimitives = 1;
 							Element_Complex.MaterialIndex = 2;
 							Element_Complex.FaceIndex = 6;
-							ExtraIndices_V2 = 3;
-							ExtraIndices = 0;
-							/*FBrickChunkSceneProxy::FElement& Element = *new(SceneProxy->Elements)FBrickChunkSceneProxy::FElement;
-							Element.FirstIndex = SceneProxy->IndexBuffer.Indices.Num() + ExtraIndices + 3;
-							Element.NumPrimitives = 1;
-							Element.MaterialIndex = FaceIndex == 5 ? TopProxyMaterialIndex : ProxyMaterialIndex;
-							Element.FaceIndex = 6;*/
 
+							SceneProxy->IndexBufferComplex.Indices.Append(FaceBatch.Indices);
 						}
-
-						// Append the batch's indices to the index buffer.
-						SceneProxy->IndexBuffer.Indices.Append(FaceBatch.Indices);
 					}
 				}
 			}

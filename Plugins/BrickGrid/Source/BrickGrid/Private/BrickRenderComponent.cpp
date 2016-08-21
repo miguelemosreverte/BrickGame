@@ -60,8 +60,27 @@ public:
 };
 
 
-
 /** Index Buffer */
+class FBrickChunkIndexBuffer : public FIndexBuffer
+{
+public:
+	TArray<int32> Indices;
+
+	virtual void InitRHI()
+	{
+		if (Indices.Num() > 0)
+		{
+			FRHIResourceCreateInfo CreateInfo;
+			IndexBufferRHI = RHICreateIndexBuffer(sizeof(int32), Indices.Num() * sizeof(int32), BUF_Static, CreateInfo);
+
+			// Write the indices to the index buffer.
+			void* Buffer = RHILockIndexBuffer(IndexBufferRHI, 0, Indices.Num() * sizeof(int32), RLM_WriteOnly);
+			FMemory::Memcpy(Buffer, Indices.GetData(), Indices.Num() * sizeof(int32));
+			RHIUnlockIndexBuffer(IndexBufferRHI);
+		}
+	}
+};
+/** Index Buffer
 class FBrickChunkIndexBuffer : public FIndexBuffer
 {
 public:
@@ -78,7 +97,7 @@ public:
 			RHIUnlockIndexBuffer(IndexBufferRHI);
 		}
 	}
-};
+}; */
 
 /** Tangent Buffer */
 class FBrickChunkTangentBuffer : public FVertexBuffer
@@ -441,7 +460,6 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 							VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
 							new(SceneProxy->VertexBuffer.Vertices) FDynamicMeshVertex(FVector (LocalVertexCoordinates.X, LocalVertexCoordinates.Y, LocalVertexCoordinates.Z));
-
 						}
 						else
 						{

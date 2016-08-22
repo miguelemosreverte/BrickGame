@@ -459,7 +459,11 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 						{
 
 							VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
-							new(SceneProxy->VertexBuffer.Vertices) FDynamicMeshVertex(FVector (LocalVertexCoordinates.X, LocalVertexCoordinates.Y, LocalVertexCoordinates.Z));
+							FVector Position(LocalVertexCoordinates.X, LocalVertexCoordinates.Y, LocalVertexCoordinates.Z);
+							Position.X *= 0.01 / 2.5;
+							Position.Y *= 0.01 / 2.5;
+							Position.Z *= 0.01 / 2.5;
+							new(SceneProxy->VertexBuffer.Vertices) FDynamicMeshVertex(Position);
 						}
 						else
 						{

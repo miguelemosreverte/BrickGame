@@ -61,11 +61,11 @@ struct FInt3
 	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category = Coordinates)
-	int32 X;
+	int32 X = 0;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category = Coordinates)
-	int32 Y;
+	int32 Y = 0;
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category = Coordinates)
-	int32 Z;
+	int32 Z = 0;
 
 	FInt3() {}
 	FInt3(int32 InX,int32 InY,int32 InZ) : X(InX), Y(InY), Z(InZ) {}
@@ -75,6 +75,7 @@ struct FInt3
 		return FInt3(I,I,I);
 	}
 
+	void Set(int32 InX, int32 InY, int32 InZ) { X = InX;Y = InY; Z = InZ; }
 	operator FIntVector() const { return FIntVector(X,Y,Z); }
 	FVector ToFloat() const { return FVector(X,Y,Z); }
 	int32 SumComponents() const { return X + Y + Z; }
@@ -325,6 +326,12 @@ private:
 
 	// Creates a region for the given coordinates.
 	void CreateRegion(const FInt3& Coordinates,FBrickGrid_InitRegion OnInitRegion);
+
+	// Reads a copy on disk of the grid's brick data.	
+	bool ReadRegion(FBrickRegion& RegionToRead);
+
+	// Saves a copy on disk of the grid's brick data.	
+	void SaveRegion(FBrickRegion& RegionToSave);
 
 	// Maps brick coordinates within a region to a brick index.
 	inline uint32 SubregionBrickCoordinatesToRegionBrickIndex(const FInt3 SubregionBrickCoordinates) const

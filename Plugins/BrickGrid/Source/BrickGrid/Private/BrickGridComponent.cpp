@@ -57,6 +57,96 @@ void UBrickGridComponent::Init(const FBrickGridParameters& InParameters)
 	CollisionChunkCoordinatesToComponent.Empty();
 }
 
+void Decompressuint8Array(TArray<uint8> &CompressedBinaryArray, TArray<uint8> &UncompressedBinaryArray)
+{
+	z_stream strm;
+	strm.zalloc = Z_NULL;
+	strm.zfree = Z_NULL;
+	strm.opaque = Z_NULL;
+
+
+	strm.avail_in = CompressedBinaryArray.Num();
+	strm.next_in = (Bytef *)CompressedBinaryArray.GetData();
+	strm.avail_out = UncompressedBinaryArray.Num();
+	strm.next_out = (Bytef *)UncompressedBinaryArray.GetData();
+
+	// the actual DE-compression work.
+	inflateInit(&strm);
+	inflate(&strm, Z_FINISH);
+	inflateEnd(&strm);
+}
+void Compressuint8Array(TArray<uint8> &CompressedBinaryArray, TArray<uint8> &UncompressedBinaryArray)
+{
+	CompressedBinaryArray.SetNum(UncompressedBinaryArray.Num() * 1023, true);
+
+	//int ret;
+	z_stream strm;
+	strm.zalloc = Z_NULL;
+	strm.zfree = Z_NULL;
+	strm.opaque = Z_NULL;
+
+	strm.avail_in = UncompressedBinaryArray.Num();
+	strm.next_in = (Bytef *)UncompressedBinaryArray.GetData();
+	strm.avail_out = CompressedBinaryArray.Num();
+	strm.next_out = (Bytef *)CompressedBinaryArray.GetData();
+
+
+	// the actual compression work.
+	deflateInit(&strm, Z_BEST_COMPRESSION);
+	deflate(&strm, Z_FINISH);
+	deflateEnd(&strm);
+
+	// Shrink the array to minimum size
+	CompressedBinaryArray.RemoveAt(strm.total_out, CompressedBinaryArray.Num() - strm.total_out, true);
+
+}
+
+void UBrickGridComponent::SaveRegion(FBrickRegion& RegionToSave)
+{
+	FString Directory = FPaths::GameDir();
+	Directory += "Saved/Redundant Database/";
+
+	FString title, title2;
+	title = Directory;
+	title += FString::FromInt(RegionToSave.Coordinates.X) +  " " + FString::FromInt(RegionToSave.Coordinates.Y) + " " + FString::FromInt(RegionToSave.Coordinates.Z) + ".bin";
+
+
+	if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*title))
+	{
+		TArray<uint8> CompressedBinaryArray;
+		Compressuint8Array(CompressedBinaryArray, RegionToSave.BrickContents);
+		FFileHelper::SaveArrayToFile(CompressedBinaryArray, *title);
+	}
+}
+
+bool UBrickGridComponent::ReadRegion(FBrickRegion& RegionToRead)
+{
+
+	FString Directory = FPaths::GameDir();
+	Directory += "Saved/Redundant Database/";
+	FString title, title2;
+	title = Directory;
+	title += FString::FromInt(RegionToRead.Coordinates.X) + " " + FString::FromInt(RegionToRead.Coordinates.Y) + " " + FString::FromInt(RegionToRead.Coordinates.Z) + ".bin";
+
+	if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*title))
+	{
+		return false;
+	}
+	else
+	{
+		TArray <uint8> CompressedBrickContent;
+		FFileHelper::LoadFileToArray(CompressedBrickContent, *title);
+
+		TArray<uint8>UncompressedBinaryArray;
+
+		UncompressedBinaryArray.SetNum((1 << (Parameters.BricksPerRegionLog2.X + Parameters.BricksPerRegionLog2.Y)) * 64 * 2);
+		Decompressuint8Array(CompressedBrickContent, UncompressedBinaryArray);
+		RegionToRead.BrickContents = UncompressedBinaryArray;
+
+	}
+	return true;
+}
+
 FBrickGridData UBrickGridComponent::GetData() const
 {
 	FBrickGridData Result;
@@ -368,7 +458,7 @@ void UBrickGridComponent::Update(const FVector& WorldViewPosition,float MaxDrawD
 				if(RegionBounds.ComputeSquaredDistanceToPoint(LocalViewPosition) < FMath::Square(LocalMaxDrawAndCollisionDistance + RegionExpansionRadius))
 				{
 					const int32* const RegionIndex = RegionCoordinatesToIndex.Find(RegionCoordinates);
-					if(!RegionIndex)
+					if (!RegionIndex)
 					{
 						const int32 RegionIndex = Regions.Num();
 						FBrickRegion& Region = *new(Regions) FBrickRegion;
@@ -377,14 +467,34 @@ void UBrickGridComponent::Update(const FVector& WorldViewPosition,float MaxDrawD
 						// Initialize the region's bricks to the empty material.
 						Region.BrickContents.Init(Parameters.EmptyMaterialIndex, 1 << Parameters.BricksPerRegionLog2.SumComponents());
 
+						FString Directory = FPaths::GameDir();
+						Directory += "Saved/Redundant Database/";
+						FString title = Directory;
+						title += FString::FromInt(Region.Coordinates.X) + " " + FString::FromInt(Region.Coordinates.Y) + " " + FString::FromInt(Region.Coordinates.Z) + ".bin";
+
+						bool RegionHasBeenFoundOnDatabase = false;
+
+						if (FPlatformFileManager::Get().GetPlatformFile().FileExists(*title))
+						{
+							RegionHasBeenFoundOnDatabase = true;
+						}
+
+						if (RegionHasBeenFoundOnDatabase)
+						{
+							ReadRegion(Region);
+						}
+
 						// Compute the region's non-empty height map.
-						UpdateMaxNonEmptyBrickMap(Region,FInt3::Scalar(0),BricksPerRegion - FInt3::Scalar(1));
+						UpdateMaxNonEmptyBrickMap(Region, FInt3::Scalar(0), BricksPerRegion - FInt3::Scalar(1));
 
 						// Add the region to the coordinate map.
-						RegionCoordinatesToIndex.Add(RegionCoordinates,RegionIndex);
+						RegionCoordinatesToIndex.Add(RegionCoordinates, RegionIndex);
 
-						// Call the InitRegion delegate for the new region.
-						OnInitRegion.Execute(RegionCoordinates);
+						if (!RegionHasBeenFoundOnDatabase)
+						{
+							OnInitRegion.Execute(RegionCoordinates);// Call the InitRegion delegate for the new region.
+							SaveRegion(Region);
+						}
 					}
 				}
 			}

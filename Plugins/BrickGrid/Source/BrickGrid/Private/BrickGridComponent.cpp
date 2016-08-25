@@ -144,7 +144,375 @@ bool UBrickGridComponent::ReadRegion(FBrickRegion& RegionToRead)
 		RegionToRead.BrickContents = UncompressedBinaryArray;
 
 	}
+
+	ReadRegionLakes(RegionToRead);
+	UpdateMaxNonEmptyBrickMap(RegionToRead, FInt3::Scalar(0), BricksPerRegion - FInt3::Scalar(1));
 	return true;
+}
+
+
+void UBrickGridComponent::CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFlux(FBrickRegion& RegionToRead)
+{
+	TQueue<FInt3> QueueOfLakesCoordinates;
+	TArray<bool>VisitedBrickIndexes;
+	VisitedBrickIndexes.SetNumUninitialized(BricksPerRegion.X * BricksPerRegion.Y * BricksPerRegion.Z);
+	for (int32 iterator = 0; iterator < VisitedBrickIndexes.Num(); iterator++)
+		VisitedBrickIndexes[iterator] = false;
+	TArray<int32>DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData;
+	DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.SetNumUninitialized(BricksPerRegion.X * BricksPerRegion.Y * BricksPerRegion.Z);
+	for (int32 iterator = 0; iterator < DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.Num(); iterator++)
+		DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[iterator] = -1;
+
+	FBrickRegion::LakeSlice LakeSlice;
+	for (int32 LocalZ = BricksPerRegion.Z - 1; LocalZ >= 0; --LocalZ)
+	{
+		for (int32 LocalX = 0; LocalX < BricksPerRegion.X; ++LocalX)
+		{
+			for (int32 LocalY = 0; LocalY < BricksPerRegion.Y; ++LocalY)
+			{
+				int32 FirstIndex = ((LocalY * BricksPerRegion.X) + LocalX) * BricksPerRegion.Z + LocalZ;// is always less than 131072
+				FInt3 Coordinates(LocalX, LocalY, LocalZ);
+				if (RegionToRead.BrickContents[FirstIndex] == 0 && !VisitedBrickIndexes[FirstIndex])
+				{
+
+					VisitedBrickIndexes[FirstIndex] = true;
+					LakeSlice.Index = FirstIndex;
+					LakeSlice.Coordinates = Coordinates;
+					QueueOfLakesCoordinates.Enqueue(Coordinates);
+					bool IndexIsOnRegionFrontier = true;
+					if (LocalX == 0)
+					{
+						LakeSlice.BricksOnTheRegionFrontierAtMinusX.Add(FirstIndex);
+					}
+					if (LocalY == 0)
+					{
+						LakeSlice.BricksOnTheRegionFrontierAtMinusY.Add(FirstIndex);
+					}
+					if (LocalX >= BricksPerRegion.X - 1)
+					{
+						LakeSlice.BricksOnTheRegionFrontierAtX.Add(FirstIndex);
+					}
+					if (LocalY >= BricksPerRegion.Y - 1)
+					{
+						LakeSlice.BricksOnTheRegionFrontierAtY.Add(FirstIndex);
+					}
+
+					IndexIsOnRegionFrontier = false;
+					FInt3 LakeCoordinates(LocalX, LocalY, LocalZ);
+					while (!QueueOfLakesCoordinates.IsEmpty())
+					{
+						QueueOfLakesCoordinates.Dequeue(LakeCoordinates);
+						int32 BrickIndex = ((LakeCoordinates.Y * BricksPerRegion.X) + LakeCoordinates.X) * BricksPerRegion.Z + LakeCoordinates.Z;
+						DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[BrickIndex] = LakeSlice.Index;
+						LakeSlice.Volume += 1;
+
+						if (LakeCoordinates.Z > 0)
+						{
+							int32 DownwardWaterBrickIndex = ((LakeCoordinates.Y * BricksPerRegion.X) + LakeCoordinates.X) * BricksPerRegion.Z + LakeCoordinates.Z - 1;
+							if (RegionToRead.BrickContents[DownwardWaterBrickIndex] == 0)
+							{
+								LakeSlice.DownwardWater.Add(DownwardWaterBrickIndex);
+							}
+						}
+						else
+						{
+							int32 DownwardWaterBrickIndex = ((LakeCoordinates.Y * BricksPerRegion.X) + LakeCoordinates.X) * BricksPerRegion.Z + BricksPerRegion.Z - 1;
+							LakeSlice.DownwardWater.Add(DownwardWaterBrickIndex);
+						}
+						LakeSlice.LakeBricks.Add(BrickIndex);
+						FInt3 NeighboorBrickAtX(1, 0, 0);
+						FInt3 NeighboorBrickAtMinusX(-1, 0, 0);
+						FInt3 NeighboorBrickAtY(0, 1, 0);
+						FInt3 NeighboorBrickAtMinusY(0, -1, 0);
+						NeighboorBrickAtX = NeighboorBrickAtX + LakeCoordinates;
+						NeighboorBrickAtMinusX = NeighboorBrickAtMinusX + LakeCoordinates;
+						NeighboorBrickAtY = NeighboorBrickAtY + LakeCoordinates;
+						NeighboorBrickAtMinusY = NeighboorBrickAtMinusY + LakeCoordinates;
+
+						int32 NeighboorBrickAtXIndex = ((NeighboorBrickAtX.Y * BricksPerRegion.X) + NeighboorBrickAtX.X) * BricksPerRegion.Z + NeighboorBrickAtX.Z;// is always less than 131072
+						int32 NeighboorBrickAtMinusXIndex = ((NeighboorBrickAtMinusX.Y * BricksPerRegion.X) + NeighboorBrickAtMinusX.X) * BricksPerRegion.Z + NeighboorBrickAtMinusX.Z;// is always less than 131072
+						int32 NeighboorBrickAtYIndex = ((NeighboorBrickAtY.Y * BricksPerRegion.X) + NeighboorBrickAtY.X) * BricksPerRegion.Z + NeighboorBrickAtY.Z;// is always less than 131072
+						int32 NeighboorBrickAtMinusYIndex = ((NeighboorBrickAtMinusY.Y * BricksPerRegion.X) + NeighboorBrickAtMinusY.X) * BricksPerRegion.Z + NeighboorBrickAtMinusY.Z;// is always less than 131072
+						if (LakeCoordinates.X < BricksPerRegion.X - 1)
+						{
+							if (!VisitedBrickIndexes[NeighboorBrickAtXIndex])
+							{
+								VisitedBrickIndexes[NeighboorBrickAtXIndex] = true;
+								if (RegionToRead.BrickContents[NeighboorBrickAtXIndex] == 0)
+								{
+									QueueOfLakesCoordinates.Enqueue(NeighboorBrickAtX);
+								}
+							}
+						}
+						else
+						{
+							int32 ModifiedBrickIndex = ((LakeCoordinates.Y * BricksPerRegion.X) + 0) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtX.Add(ModifiedBrickIndex);
+						}
+						if (LakeCoordinates.X > 0 + 1)
+						{
+							if (!VisitedBrickIndexes[NeighboorBrickAtMinusXIndex])
+							{
+								VisitedBrickIndexes[NeighboorBrickAtMinusXIndex] = true;
+								if (RegionToRead.BrickContents[NeighboorBrickAtMinusXIndex] == 0)
+								{
+									QueueOfLakesCoordinates.Enqueue(NeighboorBrickAtMinusX);
+								}
+							}
+						}
+						else if (LakeCoordinates.X == 0)
+						{
+							int32 ModifiedBrickIndex = ((LakeCoordinates.Y * BricksPerRegion.X) + BricksPerRegion.X - 1) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtMinusX.Add(ModifiedBrickIndex);
+						}
+						if (LakeCoordinates.Y < BricksPerRegion.Y - 1)
+						{
+							if (!VisitedBrickIndexes[NeighboorBrickAtYIndex])
+							{
+								VisitedBrickIndexes[NeighboorBrickAtYIndex] = true;
+								if (RegionToRead.BrickContents[NeighboorBrickAtYIndex] == 0)
+								{
+
+									QueueOfLakesCoordinates.Enqueue(NeighboorBrickAtY);
+								}
+							}
+						}
+						else
+						{
+							int32 ModifiedBrickIndex = ((0 * BricksPerRegion.X) + LakeCoordinates.X) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtY.Add(ModifiedBrickIndex);
+						}
+						if (LakeCoordinates.Y > 0 + 1)
+						{
+							if (!VisitedBrickIndexes[NeighboorBrickAtMinusYIndex])
+							{
+								VisitedBrickIndexes[NeighboorBrickAtMinusYIndex] = true;
+								if (RegionToRead.BrickContents[NeighboorBrickAtMinusYIndex] == 0)
+								{
+									QueueOfLakesCoordinates.Enqueue(NeighboorBrickAtMinusY);
+								}
+							}
+						}
+						else if (LakeCoordinates.Y == 0)
+						{
+							int32 ModifiedBrickIndex = (((BricksPerRegion.Y - 1) * BricksPerRegion.X) + LakeCoordinates.X) * BricksPerRegion.Z + LakeCoordinates.Z;
+							LakeSlice.BricksOnTheRegionFrontierAtMinusY.Add(ModifiedBrickIndex);
+						}
+					}// END OF BFS
+
+
+					FromBrickCoordinatesSaveRegionLake(RegionToRead, LakeSlice);
+					FBrickRegion::LakeSlice EmptyLake;
+					LakeSlice = EmptyLake;
+				}//END OF LAKESLICE CONFIGURATION
+			}
+		}
+	}// END of the 3 FOR LOOPS
+	RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData = DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData;
+	SaveRegionLakes(RegionToRead);
+}
+void UBrickGridComponent::SaveRegionLakes(FBrickRegion& RegionToRead)
+{
+	FString title;
+	FString Directory = FPaths::GameDir();
+	Directory += "Saved/Redundant Database/WaterStuff/";
+	title = Directory;
+	title += FString::FromInt(RegionToRead.Coordinates.X) + " " + FString::FromInt(RegionToRead.Coordinates.Y) + " " + FString::FromInt(RegionToRead.Coordinates.Z);
+	title += "/"; 
+	title += FString::FromInt(RegionToRead.Coordinates.X) + " " + FString::FromInt(RegionToRead.Coordinates.Y) + " " + FString::FromInt(RegionToRead.Coordinates.Z);
+	title += ".txt";
+
+	FString array;
+	for (int iterator = 0; iterator < RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.Num(); iterator++)
+		array += FString::FromInt(RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[iterator]) + "\r\n";
+	FFileHelper::SaveStringToFile(array, *title);
+}
+void UBrickGridComponent::FromBrickCoordinatesSaveRegionLake(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeSliceToSave)
+{
+
+	FString title;
+	FString Directory = FPaths::GameDir();
+	Directory += "Saved/Redundant Database/WaterStuff/";
+	title = Directory;
+	title += FString::FromInt(RegionToRead.Coordinates.X) + " " + FString::FromInt(RegionToRead.Coordinates.Y) + " " + FString::FromInt(RegionToRead.Coordinates.Z);
+	title += "/";
+	title += FString::FromInt(LakeSliceToSave.Index);
+	title += ".txt";
+
+	FString FString;
+	FString += FString::FromInt(LakeSliceToSave.Index) + "\r\n";
+	FString += FString::FromInt(LakeSliceToSave.Volume) + "\r\n";
+	FString += FString::FromInt(LakeSliceToSave.Coordinates.X) + "\r\n";
+	FString += FString::FromInt(LakeSliceToSave.Coordinates.Y) + "\r\n";
+	FString += FString::FromInt(LakeSliceToSave.Coordinates.Z) + "\r\n";
+	FString += FString::FromInt(LakeSliceToSave.Pressure) + "\r\n";
+	for (int iterator = 0; iterator < LakeSliceToSave.LakeBricks.Num(); iterator++)
+	{
+		FString += FString::FromInt(LakeSliceToSave.LakeBricks[iterator]) + "\r\n";
+	}
+	FString += "DownwardWater\r\n";
+	for (int iterator = 0; iterator < LakeSliceToSave.DownwardWater.Num(); iterator++)
+	{
+		FString += FString::FromInt(LakeSliceToSave.DownwardWater[iterator]) + "\r\n";
+	}
+	FString += "BricksOnTheRegionFrontierAtX\r\n";
+	for (int iterator = 0; iterator < LakeSliceToSave.BricksOnTheRegionFrontierAtX.Num(); iterator++)
+	{
+		FString += FString::FromInt(LakeSliceToSave.BricksOnTheRegionFrontierAtX[iterator]) + "\r\n";
+	}
+	FString += "BricksOnTheRegionFrontierAtMinusX\r\n";
+	for (int iterator = 0; iterator < LakeSliceToSave.BricksOnTheRegionFrontierAtMinusX.Num(); iterator++)
+	{
+		FString += FString::FromInt(LakeSliceToSave.BricksOnTheRegionFrontierAtMinusX[iterator]) + "\r\n";
+	}
+	FString += "BricksOnTheRegionFrontierAtY\r\n";
+	for (int iterator = 0; iterator < LakeSliceToSave.BricksOnTheRegionFrontierAtY.Num(); iterator++)
+	{
+		FString += FString::FromInt(LakeSliceToSave.BricksOnTheRegionFrontierAtY[iterator]) + "\r\n";
+	}
+	FString += "BricksOnTheRegionFrontierAtMinusY\r\n";
+	for (int iterator = 0; iterator < LakeSliceToSave.BricksOnTheRegionFrontierAtMinusY.Num(); iterator++)
+	{
+		FString += FString::FromInt(LakeSliceToSave.BricksOnTheRegionFrontierAtMinusY[iterator]) + "\r\n";
+	}
+	FFileHelper::SaveStringToFile(FString, *title);
+
+}
+void UBrickGridComponent::ReadRegionLakes(FBrickRegion& RegionToRead)
+{
+	FString title;
+	FString Directory = FPaths::GameDir();
+	Directory += "Saved/Redundant Database/WaterStuff/";
+	title = Directory;
+	title += FString::FromInt(RegionToRead.Coordinates.X) + " " + FString::FromInt(RegionToRead.Coordinates.Y) + " " + FString::FromInt(RegionToRead.Coordinates.Z);
+	title += "/";
+	title += FString::FromInt(RegionToRead.Coordinates.X) + " " + FString::FromInt(RegionToRead.Coordinates.Y) + " " + FString::FromInt(RegionToRead.Coordinates.Z);
+	title += ".txt";
+
+	if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*title))
+	{
+		CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFlux(RegionToRead);
+	}
+	TArray <FString> lines;
+	FFileHelper::LoadANSITextFileToStrings(*title, NULL, lines);
+
+	UE_LOG(LogStats, Log, TEXT("RegionToRead %d %d %d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z);
+
+	for (int iterator = 0; iterator < lines.Num(); iterator++)
+	{
+		if (iterator < (BricksPerRegion.X * BricksPerRegion.Y * BricksPerRegion.Z))// always less than 131072
+			RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.Add(FCString::Atoi(*lines[iterator]));
+	}
+
+}
+bool UBrickGridComponent::FromBrickCoordinatesFindRegionLake(FBrickRegion& RegionToRead, int &LakeIndex, FBrickRegion::LakeSlice &LakeSliceToRead)
+{
+	if (RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData.Num() == 0)
+	{
+		return false;
+	}
+	else
+	{
+		LakeIndex = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[LakeIndex];
+		if (LakeIndex != -1)
+		{
+			FString title;
+			FString Directory = FPaths::GameDir();
+			Directory += "Saved/Redundant Database/WaterStuff/";
+			title = Directory;
+			title += FString::FromInt(RegionToRead.Coordinates.X) + " " + FString::FromInt(RegionToRead.Coordinates.Y) + " " + FString::FromInt(RegionToRead.Coordinates.Z);
+			title += "/";
+			title += FString::FromInt(LakeIndex);
+			title += ".txt";
+
+			//UE_LOG(LogStats, Log, TEXT("%s"), *title);
+			TArray <FString> LinesOfText;
+			FFileHelper::LoadANSITextFileToStrings(*title, NULL, LinesOfText);
+			LakeSliceToRead.Index = FCString::Atoi(*LinesOfText[0]);
+			LakeSliceToRead.Volume = FCString::Atoi(*LinesOfText[1]);
+			LakeSliceToRead.Coordinates.X = FCString::Atoi(*LinesOfText[2]);
+			LakeSliceToRead.Coordinates.Y = FCString::Atoi(*LinesOfText[3]);
+			LakeSliceToRead.Coordinates.Z = FCString::Atoi(*LinesOfText[4]);
+			LakeSliceToRead.Pressure = FCString::Atoi(*LinesOfText[5]);
+
+			bool LakeBricks = true;
+			bool DownwardWater = false;
+			bool BricksOnTheRegionFrontierAtX = false;
+			bool BricksOnTheRegionFrontierAtMinusX = false;
+			bool BricksOnTheRegionFrontierAtY = false;
+			bool BricksOnTheRegionFrontierAtMinusY = false;
+
+			int iterator = -1;
+			while (iterator < LinesOfText.Num() - 7)
+			{
+				iterator++;
+				FString CurrentLine = LinesOfText[iterator + 6];
+
+				if (LakeBricks)
+				{
+					if (CurrentLine != "DownwardWater")
+						LakeSliceToRead.LakeBricks.Add(FCString::Atoi(*CurrentLine));
+					else
+					{
+						LakeBricks = false;
+						DownwardWater = true;
+					}
+				}
+				if (DownwardWater)
+				{
+					if (CurrentLine != "BricksOnTheRegionFrontierAtX")
+						LakeSliceToRead.DownwardWater.Add(FCString::Atoi(*CurrentLine));
+					else
+					{
+						DownwardWater = false;
+						BricksOnTheRegionFrontierAtX = true;
+					}
+				}
+				if (BricksOnTheRegionFrontierAtX)
+				{
+					if (CurrentLine != "BricksOnTheRegionFrontierAtMinusX")
+						LakeSliceToRead.BricksOnTheRegionFrontierAtX.Add(FCString::Atoi(*CurrentLine));
+					else
+					{
+						BricksOnTheRegionFrontierAtX = false;
+						BricksOnTheRegionFrontierAtMinusX = true;
+					}
+				}
+
+				if (BricksOnTheRegionFrontierAtMinusX)
+				{
+					if (CurrentLine != "BricksOnTheRegionFrontierAtY")
+						LakeSliceToRead.BricksOnTheRegionFrontierAtMinusX.Add(FCString::Atoi(*CurrentLine));
+					else
+					{
+						BricksOnTheRegionFrontierAtMinusX = false;
+						BricksOnTheRegionFrontierAtY = true;
+					}
+				}
+
+				if (BricksOnTheRegionFrontierAtY)
+				{
+					if (CurrentLine != "BricksOnTheRegionFrontierAtMinusY")
+						LakeSliceToRead.BricksOnTheRegionFrontierAtY.Add(FCString::Atoi(*CurrentLine));
+					else
+					{
+						BricksOnTheRegionFrontierAtY = false;
+						BricksOnTheRegionFrontierAtMinusY = true;
+					}
+				}
+
+				if (BricksOnTheRegionFrontierAtMinusY)
+				{
+					LakeSliceToRead.BricksOnTheRegionFrontierAtMinusY.Add(FCString::Atoi(*CurrentLine));
+				}
+			}
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
 }
 
 FBrickGridData UBrickGridComponent::GetData() const
@@ -265,22 +633,274 @@ void UBrickGridComponent::SetBrickMaterialArray(const FInt3& MinBrickCoordinates
 	InvalidateChunkComponents(MinBrickCoordinates,MaxBrickCoordinates);
 }
 
+void UBrickGridComponent::IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, FInt3 BrickCoordinates)
+{
+
+	int Up = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int Down = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z - 1;
+	int MinusX = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X - 1) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int PlusX = ((BrickCoordinates.Y * BricksPerRegion.X) + BrickCoordinates.X + 1) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int MinusY = (((BrickCoordinates.Y - 1) * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+	int PlusY = (((BrickCoordinates.Y + 1) * BricksPerRegion.X) + BrickCoordinates.X) * BricksPerRegion.Z + BrickCoordinates.Z + 1;
+
+	int Max = BricksPerRegion.X * BricksPerRegion.Y * BricksPerRegion.Z;
+	bool Up_IsValid = false;
+	bool Down_IsValid = false;
+	bool MinusX_IsValid = false;
+	bool PlusX_IsValid = false;
+	bool MinusY_IsValid = false;
+	bool PlusY_IsValid = false;
+	if (Up >= 0 && Up < Max) Up_IsValid = true;
+	if (Down >= 0 && Down < Max) Down_IsValid = true;
+	if (MinusX >= 0 && MinusX < Max) MinusX_IsValid = true;
+	if (PlusX >= 0 && PlusX < Max) PlusX_IsValid = true;
+	if (MinusY >= 0 && MinusY < Max) MinusY_IsValid = true;
+	if (PlusY >= 0 && PlusY < Max) PlusY_IsValid = true;
+	bool ThereIsWaterClose = false;
+
+	if (Up_IsValid)
+		if (RegionToRead.BrickContents[Up] == 9)
+			ThereIsWaterClose = true;
+	if (Down_IsValid)
+		if (RegionToRead.BrickContents[Down] == 9)
+			ThereIsWaterClose = true;
+	if (MinusX_IsValid)
+		if (RegionToRead.BrickContents[MinusX] == 9)
+			ThereIsWaterClose = true;
+	if (PlusX_IsValid)
+		if (RegionToRead.BrickContents[PlusX] == 9)
+			ThereIsWaterClose = true;
+	if (MinusY_IsValid)
+		if (RegionToRead.BrickContents[MinusY] == 9)
+			ThereIsWaterClose = true;
+	if (PlusY_IsValid)
+		if (RegionToRead.BrickContents[PlusY] == 9)
+			ThereIsWaterClose = true;
+
+	if (ThereIsWaterClose)
+	{
+
+		FBrickRegion::LakeSlice LakeToFlood_Up;
+		FBrickRegion::LakeSlice LakeToFlood_Down;
+		FBrickRegion::LakeSlice LakeToFlood_MinusX;
+		FBrickRegion::LakeSlice LakeToFlood_PlusX;
+		FBrickRegion::LakeSlice LakeToFlood_MinusY;
+		FBrickRegion::LakeSlice LakeToFlood_PlusY;
+
+		int BiggestPressure = -1;
+		int LakeIndexWithBiggestPressure;
+		/*if (Up_IsValid)
+		{
+		if (FromBrickCoordinatesFindRegionLake(RegionToRead, Up, LakeToFlood_Up) && LakeToFlood_Up.Pressure > BiggestPressure)
+		{
+		BiggestPressure = LakeToFlood_Up.Pressure; LakeIndexWithBiggestPressure = LakeToFlood_Up.Index;
+		}
+		}*/
+		if (Down_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, Down, LakeToFlood_Down) && LakeToFlood_Down.Pressure > BiggestPressure)
+			{
+				BiggestPressure = LakeToFlood_Down.Pressure; LakeIndexWithBiggestPressure = Down;
+			}
+		}
+		if (MinusX_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, MinusX, LakeToFlood_MinusX) && LakeToFlood_MinusX.Pressure > BiggestPressure)
+			{
+				BiggestPressure = LakeToFlood_MinusX.Pressure; LakeIndexWithBiggestPressure = MinusX;
+			}
+		}
+		if (PlusX_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, PlusX, LakeToFlood_PlusX) && LakeToFlood_PlusX.Pressure > BiggestPressure)
+			{
+				BiggestPressure = LakeToFlood_PlusX.Pressure; LakeIndexWithBiggestPressure = PlusX;
+			}
+		}
+		if (MinusY_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, MinusY, LakeToFlood_MinusY) && LakeToFlood_MinusY.Pressure > BiggestPressure)
+			{
+				BiggestPressure = LakeToFlood_MinusY.Pressure; LakeIndexWithBiggestPressure = MinusY;
+			}
+		}
+		if (PlusY_IsValid)
+		{
+			if (FromBrickCoordinatesFindRegionLake(RegionToRead, PlusY, LakeToFlood_PlusY) && LakeToFlood_PlusY.Pressure > BiggestPressure)
+			{
+				BiggestPressure = LakeToFlood_PlusY.Pressure; LakeIndexWithBiggestPressure = PlusY;
+			}
+		}
+		if (BiggestPressure != -1)
+		{
+			CreateLake(RegionToRead, LakeIndexWithBiggestPressure, BiggestPressure);
+		}
+	}
+
+}
 bool UBrickGridComponent::SetBrick(const FInt3& BrickCoordinates, int32 MaterialIndex)
 {
-	if(FInt3::All(BrickCoordinates >= MinBrickCoordinates) && FInt3::All(BrickCoordinates <= MaxBrickCoordinates) && MaterialIndex < Parameters.Materials.Num())
+	if (FInt3::All(BrickCoordinates >= MinBrickCoordinates) && FInt3::All(BrickCoordinates <= MaxBrickCoordinates) && MaterialIndex < Parameters.Materials.Num())
 	{
 		const FInt3 RegionCoordinates = BrickToRegionCoordinates(BrickCoordinates);
 		const int32* const RegionIndex = RegionCoordinatesToIndex.Find(RegionCoordinates);
 		if (RegionIndex != NULL)
 		{
-			const uint32 BrickIndex = BrickCoordinatesToRegionBrickIndex(RegionCoordinates,BrickCoordinates);
+			const uint32 BrickIndex = BrickCoordinatesToRegionBrickIndex(RegionCoordinates, BrickCoordinates);
 			FBrickRegion& Region = Regions[*RegionIndex];
+			if (MaterialIndex == 0)
+			{
+				IfThereIsALakeCloseThereShouldBeAFlood(Region, GlobalBrickCoordinateToSubregionBrickCoordinates(BrickCoordinates));
+			}
+			if (MaterialIndex == 1)
+			{
+				const double StartTime = FPlatformTime::Seconds();
+				CreateLake(Region, BrickIndex, 1);
+				ListOfVisitedRegionAndLakeIndexCombos.Empty();
+
+				UE_LOG(LogStats, Log, TEXT("CreateLake took %fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
+
+				// Wait for all the YSlice tasks to complete.
+				FTaskGraphInterface::Get().WaitUntilTasksComplete(YSliceCompletionEvents, ENamedThreads::GameThread);
+
+				for (int iterator = 0; iterator < ListOfVisitedRegionAndLakeIndexCombos.Num(); iterator++)
+				{
+
+					UE_LOG(LogStats, Log, TEXT("List %d,%d,%d ... %d"), ListOfVisitedRegionAndLakeIndexCombos[iterator].RegionCoordinates.X, ListOfVisitedRegionAndLakeIndexCombos[iterator].RegionCoordinates.Y, ListOfVisitedRegionAndLakeIndexCombos[iterator].RegionCoordinates.Z, ListOfVisitedRegionAndLakeIndexCombos[iterator].LakeIndex);
+				}
+			}
 			Region.BrickContents[BrickIndex] = MaterialIndex;
-			InvalidateChunkComponents(BrickCoordinates,BrickCoordinates);
+			InvalidateChunkComponents(BrickCoordinates, BrickCoordinates);
 			return true;
 		}
 	}
 	return false;
+}
+void UBrickGridComponent::CreateLake(FBrickRegion& RegionToRead, int32 LakeIndex, int32 Pressure)
+{
+
+
+	RegionAndLakeIndexCombo ThisRegionAndLakeIndexCombo;
+	ThisRegionAndLakeIndexCombo.RegionCoordinates = RegionToRead.Coordinates;
+	ThisRegionAndLakeIndexCombo.LakeIndex = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[LakeIndex];
+	if (!ListOfVisitedRegionAndLakeIndexCombos.Contains(ThisRegionAndLakeIndexCombo))
+		UE_LOG(LogStats, Log, TEXT("PROBLEM WAS THE LIST"));
+
+	if (ThisRegionAndLakeIndexCombo.LakeIndex != -1 && !ListOfVisitedRegionAndLakeIndexCombos.Contains(ThisRegionAndLakeIndexCombo))
+	{
+		ListOfVisitedRegionAndLakeIndexCombos.Add(ThisRegionAndLakeIndexCombo);
+		FBrickRegion::LakeSlice LakeToFlood;
+		if (FromBrickCoordinatesFindRegionLake(RegionToRead, LakeIndex, LakeToFlood))
+		{
+			LakeToFlood.Pressure = Pressure;
+			for (int32 iterator = 0; iterator < LakeToFlood.LakeBricks.Num(); iterator++)
+			{
+				RegionToRead.BrickContents[LakeToFlood.LakeBricks[iterator]] = 7;
+			}
+			UE_LOG(LogStats, Log, TEXT("FLOODED %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
+
+
+			UE_LOG(LogStats, Log, TEXT("InvalidateChunkComponents_OnlyRender %d,%d,%d"), RegionToRead.Coordinates.X, RegionToRead.Coordinates.Y, RegionToRead.Coordinates.Z, LakeIndex);
+
+
+			const FInt3 MinRegionBrickCoordinates = RegionToRead.Coordinates * BricksPerRegion;
+			const FInt3 MaxRegionBrickCoordinates = MinRegionBrickCoordinates + BricksPerRegion - FInt3::Scalar(1);
+			int LA = 3;
+			YSliceCompletionEvents.Add(FFunctionGraphTask::CreateAndDispatchWhenReady([&, LA]()
+			{
+				InvalidateChunkComponents_OnlyRender(MinRegionBrickCoordinates, MaxRegionBrickCoordinates);
+			}, TStatId(), NULL));
+
+			FloodAllIndexesOfLakesAcrossTheRegionFrontierAndDownwardsTheLakeItself(RegionToRead, LakeToFlood);
+		}
+	}
+}
+void UBrickGridComponent::FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32> &ListOfLakeIndexesReadyToBeFlooded)
+{
+	ListOfLakeIndexesReadyToBeFlooded.Empty();
+	for (int iterator = 0; iterator < LakeFrontier.Num(); iterator++)
+	{
+		int32 Index = RegionToRead.DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData[LakeFrontier[iterator]];
+		if (Index != -1)
+		{
+			if (!ListOfLakeIndexesReadyToBeFlooded.Contains(Index))
+			{
+				ListOfLakeIndexesReadyToBeFlooded.Add(Index);
+			}
+		}
+	}
+}
+void UBrickGridComponent::FloodAllIndexesOfLakesAcrossTheRegionFrontierAndDownwardsTheLakeItself(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeToFlood)
+{
+	/*FLOOD LAKES ACROSS THE REGION FRONTIERS*/
+	TArray<int32>IndexesOfLakesAcrossTheRegionFrontier;
+
+	FInt3 ExtraCoordinatesX(1, 0, 0);
+	FInt3 ExtraCoordinatesMinusX(-1, 0, 0);
+	FInt3 ExtraCoordinatesY(0, 1, 0);
+	FInt3 ExtraCoordinatesMinusY(0, -1, 0);
+	FInt3 ExtraCoordinatesMinusZ(0, 0, -1);
+
+	const int32* const RegionIndex_X = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesX);
+	const int32* const RegionIndex_MinusX = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusX);
+	const int32* const RegionIndex_Y = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesY);
+	const int32* const RegionIndex_MinusY = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusY);
+	const int32* const RegionIndex_MinusZ = RegionCoordinatesToIndex.Find(RegionToRead.Coordinates + ExtraCoordinatesMinusZ);
+
+	if (RegionIndex_X)
+	{
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_X], LakeToFlood.BricksOnTheRegionFrontierAtX, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
+		{
+			CreateLake(Regions[*RegionIndex_X], IndexesOfLakesAcrossTheRegionFrontier[iterator], LakeToFlood.Pressure);
+		}
+	}
+
+	if (RegionIndex_MinusX)
+	{
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_MinusX], LakeToFlood.BricksOnTheRegionFrontierAtMinusX, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
+		{
+			CreateLake(Regions[*RegionIndex_MinusX], IndexesOfLakesAcrossTheRegionFrontier[iterator], LakeToFlood.Pressure);
+		}
+	}
+	if (RegionIndex_Y)
+	{
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_Y], LakeToFlood.BricksOnTheRegionFrontierAtY, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
+		{
+			CreateLake(Regions[*RegionIndex_Y], IndexesOfLakesAcrossTheRegionFrontier[iterator], LakeToFlood.Pressure);
+		}
+	}
+	if (RegionIndex_MinusY)
+	{
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_MinusY], LakeToFlood.BricksOnTheRegionFrontierAtMinusY, IndexesOfLakesAcrossTheRegionFrontier);
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
+		{
+			CreateLake(Regions[*RegionIndex_MinusY], IndexesOfLakesAcrossTheRegionFrontier[iterator], LakeToFlood.Pressure);
+		}
+	}
+	if (LakeToFlood.Coordinates.Z > 0)
+	{
+		FindAllIndexesOfLakesAcrossTheRegionFrontier(RegionToRead, LakeToFlood.DownwardWater, IndexesOfLakesAcrossTheRegionFrontier);
+
+		for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
+		{
+			CreateLake(RegionToRead, IndexesOfLakesAcrossTheRegionFrontier[iterator], LakeToFlood.Pressure + 1);
+		}
+	}
+	else
+	{
+		if (RegionIndex_MinusZ)
+		{
+			FindAllIndexesOfLakesAcrossTheRegionFrontier(Regions[*RegionIndex_MinusZ], LakeToFlood.DownwardWater, IndexesOfLakesAcrossTheRegionFrontier);
+
+			for (int iterator = 0; iterator < IndexesOfLakesAcrossTheRegionFrontier.Num(); iterator++)
+			{
+				CreateLake(Regions[*RegionIndex_MinusZ], IndexesOfLakesAcrossTheRegionFrontier[iterator], LakeToFlood.Pressure + 1);
+			}
+		}
+	}
 }
 
 void UBrickGridComponent::UpdateMaxNonEmptyBrickMap(FBrickRegion& Region,const FInt3 MinDirtyRegionBrickCoordinates,const FInt3 MaxDirtyRegionBrickCoordinates) const
@@ -357,6 +977,35 @@ void UBrickGridComponent::GetMaxNonEmptyBrickZ(const FInt3& MinBrickCoordinates,
 			}
 		}
 	}
+}
+
+void UBrickGridComponent::InvalidateChunkComponents_OnlyRender(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates)
+{
+	const FInt3 MinRenderChunkCoordinates = BrickToRenderChunkCoordinates(MinBrickCoordinates);
+	const FInt3 MaxRenderChunkCoordinates = BrickToRenderChunkCoordinates(MaxBrickCoordinates);
+	for (int32 ChunkX = MinRenderChunkCoordinates.X; ChunkX <= MaxRenderChunkCoordinates.X; ++ChunkX)
+	{
+		for (int32 ChunkY = MinRenderChunkCoordinates.Y; ChunkY <= MaxRenderChunkCoordinates.Y; ++ChunkY)
+		{
+			for (int32 ChunkZ = UBrickGridComponent::MinBrickCoordinates.Z; ChunkZ <= MaxRenderChunkCoordinates.Z; ++ChunkZ)
+			{
+				UBrickRenderComponent* RenderComponent = RenderChunkCoordinatesToComponent.FindRef(FInt3(ChunkX, ChunkY, ChunkZ));
+				if (RenderComponent)
+				{
+					if (ChunkZ >= MinRenderChunkCoordinates.Z)
+					{
+						RenderComponent->MarkRenderStateDirty();
+					}
+					else
+					{
+						// If the chunk only needs to be invalidate to update its ambient occlusion, defer it as a low priority update.
+						RenderComponent->HasLowPriorityUpdatePending = true;
+					}
+				}
+			}
+		}
+	}
+
 }
 
 void UBrickGridComponent::InvalidateChunkComponents(const FInt3& MinBrickCoordinates,const FInt3& MaxBrickCoordinates)

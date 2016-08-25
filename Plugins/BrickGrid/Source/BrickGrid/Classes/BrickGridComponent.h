@@ -160,8 +160,25 @@ struct FBrickRegion
 	UPROPERTY()
 	TArray<uint8> BrickContents;
 
+
+	struct LakeSlice {
+		int32 Index;
+		FInt3 Coordinates;
+		int32 Volume = 0;//number of blocks contained by lake
+		int32 DownwardsFlux = 0;//number of blocks contained by DownwardWater
+		int32 Pressure = 1;
+		TArray<int32>DownwardWater;
+		TArray<int32> LakeBricks;
+		TArray<int32> LakeFrontier;
+		TArray <int32> BricksOnTheRegionFrontierAtX;
+		TArray <int32> BricksOnTheRegionFrontierAtMinusX;
+		TArray <int32> BricksOnTheRegionFrontierAtY;
+		TArray <int32> BricksOnTheRegionFrontierAtMinusY;
+	};
+
 	// Contains the occupied brick with highest Z in this region for each XY coordinate in the region. -1 means no non-empty bricks in this region at that XY.
 	TArray<int8> MaxNonEmptyBrickRegionZs;
+	TArray<int32> DuplicateArrayWhereLakeIndexesAreLinkedToVoxelData;
 };
 
 /** The parameters for a BrickGridComponent. */
@@ -312,6 +329,15 @@ private:
 	// All regions of the grid.
 	UPROPERTY(Transient,DuplicateTransient)
 	TArray<struct FBrickRegion> Regions;
+	struct RegionAndLakeIndexCombo {
+		FInt3 RegionCoordinates; int32 LakeIndex;
+		friend bool operator==(const RegionAndLakeIndexCombo& A, const RegionAndLakeIndexCombo& B)
+		{
+			return A.RegionCoordinates == B.RegionCoordinates && A.LakeIndex == B.LakeIndex;
+		}
+	};
+	FGraphEventArray YSliceCompletionEvents;
+	TArray<RegionAndLakeIndexCombo>ListOfVisitedRegionAndLakeIndexCombos;
 
 	// Transient maps to help lookup regions and chunks by coordinates.
 	TMap<FInt3,int32> RegionCoordinatesToIndex;
@@ -333,6 +359,18 @@ private:
 	// Saves a copy on disk of the grid's brick data.	
 	void SaveRegion(FBrickRegion& RegionToSave);
 
+	void CalculatePosibleWaterSurfacesAndRespectiveVolumesAndFlux(FBrickRegion& RegionToRead);
+	bool FromBrickCoordinatesFindRegionLake(FBrickRegion& RegionToRead, int &BrickCoordinates, FBrickRegion::LakeSlice &LakeSliceToRead);
+	void FromBrickCoordinatesSaveRegionLake(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeSliceToSave);
+	void ReadRegionLakes(FBrickRegion& RegionToRead);
+	void SaveRegionLakes(FBrickRegion& RegionToRead);
+
+	void FindAllIndexesOfLakesAcrossTheRegionFrontier(FBrickRegion& RegionToRead, TArray<int32>&LakeFrontier, TArray<int32> &BrickCoordinatesArray);
+	void FloodAllIndexesOfLakesAcrossTheRegionFrontierAndDownwardsTheLakeItself(FBrickRegion& RegionToRead, FBrickRegion::LakeSlice &LakeSlice);
+	void IfThereIsALakeCloseThereShouldBeAFlood(FBrickRegion& RegionToRead, FInt3 BrickCoordinates);
+	void CreateLake(FBrickRegion& RegionToRead, int32 BrickIndex, int32 Pressure);
+	void InvalidateChunkComponents_OnlyRender(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates);
+
 	// Maps brick coordinates within a region to a brick index.
 	inline uint32 SubregionBrickCoordinatesToRegionBrickIndex(const FInt3 SubregionBrickCoordinates) const
 	{
@@ -342,6 +380,14 @@ private:
 	{
 		return SubregionBrickCoordinatesToRegionBrickIndex(BrickCoordinates - (RegionCoordinates << Parameters.BricksPerRegionLog2));
 		
+	}
+	inline FInt3 GlobalBrickCoordinateToSubregionBrickCoordinates(const FInt3& BrickCoordinates) const
+	{
+		FInt3 SubregionBrickCoordinates;
+		SubregionBrickCoordinates.X = BrickCoordinates.X % BricksPerRegion.X;
+		SubregionBrickCoordinates.Y = BrickCoordinates.Y % BricksPerRegion.Y;
+		SubregionBrickCoordinates.Z = BrickCoordinates.Z % BricksPerRegion.Z;
+		return SubregionBrickCoordinates;
 	}
 
 	// Updates the non-empty height map for a single region.

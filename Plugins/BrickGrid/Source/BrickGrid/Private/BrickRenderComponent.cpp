@@ -460,9 +460,9 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 							VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
 							FVector Position(LocalVertexCoordinates.X, LocalVertexCoordinates.Y, LocalVertexCoordinates.Z);
-							Position.X *= 0.01 / 2.5;
-							Position.Y *= 0.01 / 2.5;
-							Position.Z *= 0.01 / 2.5;
+							Position.X *= 0.01 / 2.55;
+							Position.Y *= 0.01 / 2.55;
+							Position.Z *= 0.01 / 2.55;
 							new(SceneProxy->VertexBuffer.Vertices) FDynamicMeshVertex(Position);
 						}
 						else
@@ -515,11 +515,11 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 												FaceVertexIndices[4 + FaceVertexIndex] = NewVertexIndex;
 												if (FaceIndex == 5)
 												{
-													SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.5);
+													SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.55);
 												}
 												if (FaceIndex == 0 || FaceIndex == 1 || FaceIndex == 2 && (FaceVertexIndex == 2 || FaceVertexIndex == 1))
 												{
-													SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.5);
+													SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.55);
 												}
 											}
 
@@ -535,13 +535,13 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 											if (FaceIndex == 2)
 											{
-												SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.5);
+												SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.55);
 											}
 											if (   (FaceIndex == 5 && (FaceVertexIndex == 0 || FaceVertexIndex == 3))
 												|| (FaceIndex == 0 && (FaceVertexIndex == 3 || FaceVertexIndex == 2))
 												|| (FaceIndex == 1 && (FaceVertexIndex == 1 || FaceVertexIndex == 0))
 												)
-												SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.5);													
+												SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.55);													
 										}
 									}
 

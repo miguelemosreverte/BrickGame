@@ -497,12 +497,52 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 								if (BrickClassByMaterial[BrickMaterial] > BrickClassByMaterial[FrontBrickMaterial])
 								{
-									uint16 FaceVertexIndices[4];
+									uint16 FaceVertexIndices[8];
 									for (uint32 FaceVertexIndex = 0; FaceVertexIndex < 4; ++FaceVertexIndex)
 									{
 										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][FaceVertexIndex]);
 										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
 										FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+										if (BrickMaterial == 9)
+										{
+											if (FaceIndex == 0 || FaceIndex == 1 || FaceIndex == 5 || FaceIndex == 2)
+											{
+												int VertexIndex = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+												FVector Position = SceneProxy->VertexBuffer.Vertices[VertexIndex].Position;
+
+												int NewVertexIndex = SceneProxy->VertexBuffer.Vertices.Num();
+												new(SceneProxy->VertexBuffer.Vertices) FDynamicMeshVertex(Position);
+												FaceVertexIndices[4 + FaceVertexIndex] = NewVertexIndex;
+												if (FaceIndex == 5)
+												{
+													SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.5);
+												}
+												if (FaceIndex == 0 || FaceIndex == 1 || FaceIndex == 2 && (FaceVertexIndex == 2 || FaceVertexIndex == 1))
+												{
+													SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.5);
+												}
+											}
+
+
+
+
+											int VertexIndex = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+											FVector Position = SceneProxy->VertexBuffer.Vertices[VertexIndex].Position;
+
+											int NewVertexIndex = SceneProxy->VertexBuffer.Vertices.Num();
+											new(SceneProxy->VertexBuffer.Vertices) FDynamicMeshVertex(Position);
+											FaceVertexIndices[FaceVertexIndex] = NewVertexIndex;
+
+											if (FaceIndex == 2)
+											{
+												SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.5);
+											}
+											if (   (FaceIndex == 5 && (FaceVertexIndex == 0 || FaceVertexIndex == 3))
+												|| (FaceIndex == 0 && (FaceVertexIndex == 3 || FaceVertexIndex == 2))
+												|| (FaceIndex == 1 && (FaceVertexIndex == 1 || FaceVertexIndex == 0))
+												)
+												SceneProxy->VertexBuffer.Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.5);													
+										}
 									}
 
 									// Write the indices for the brick face.
@@ -514,6 +554,19 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 									*FaceVertexIndex++ = FaceVertexIndices[0];
 									*FaceVertexIndex++ = FaceVertexIndices[2];
 									*FaceVertexIndex++ = FaceVertexIndices[3];
+
+									if (BrickMaterial ==9)
+									{
+										// Write the indices for the brick face.
+										FFaceBatch& FaceBatch = MaterialBatches[BrickMaterial].FaceBatches[FaceIndex];
+										uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
+										*FaceVertexIndex++ = FaceVertexIndices[4 + 0];
+										*FaceVertexIndex++ = FaceVertexIndices[4 + 1];
+										*FaceVertexIndex++ = FaceVertexIndices[4 + 2];
+										*FaceVertexIndex++ = FaceVertexIndices[4 + 0];
+										*FaceVertexIndex++ = FaceVertexIndices[4 + 2];
+										*FaceVertexIndex++ = FaceVertexIndices[4 + 3];
+									}
 								}
 							}
 						}

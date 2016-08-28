@@ -478,6 +478,7 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 						if (BrickMaterial != EmptyMaterialIndex)
 						{
 
+							uint16 FaceVertexIndices[6][8];
 							TArray<uint8>FacesDrawn;
 							const FInt3 RelativeBrickCoordinates = FInt3(LocalBrickX, LocalBrickY, LocalBrickZ) - LocalBrickExpansion;
 							for (uint32 FaceIndex = 0; FaceIndex < 6; ++FaceIndex)
@@ -492,35 +493,32 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 								if (BrickClassByMaterial[BrickMaterial] > BrickClassByMaterial[FrontBrickMaterial])
 								{
 									FacesDrawn.Add(FaceIndex);
-									uint16 FaceVertexIndices[8];
 									for (uint32 FaceVertexIndex = 0; FaceVertexIndex < 4; ++FaceVertexIndex)
 									{
 										const FInt3 CornerVertexOffset = GetCornerVertexOffset(FaceVertices[FaceIndex][FaceVertexIndex]);
 										const FInt3 LocalVertexCoordinates = RelativeBrickCoordinates + CornerVertexOffset;
-										FaceVertexIndices[FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
+										FaceVertexIndices[FaceIndex][FaceVertexIndex] = VertexIndexMap[(LocalVertexCoordinates.Y * LocalVertexDim.X + LocalVertexCoordinates.X) * LocalVertexDim.Z + LocalVertexCoordinates.Z];
 										
 									}
+									bool BrickIsComplex = false;
+									if (BrickMaterial == 9) BrickIsComplex = true;
+									if (BrickIsComplex)
+									{
+										ComplexShapeBrickFactory asdf;
+										asdf.a(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, FaceVertexIndices, FaceIndex);
+									}
+
 									// Write the indices for the brick face.
 									FFaceBatch& FaceBatch = MaterialBatches[BrickMaterial].FaceBatches[FaceIndex];
 									uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
-									*FaceVertexIndex++ = FaceVertexIndices[0];
-									*FaceVertexIndex++ = FaceVertexIndices[1];
-									*FaceVertexIndex++ = FaceVertexIndices[2];
-									*FaceVertexIndex++ = FaceVertexIndices[0];
-									*FaceVertexIndex++ = FaceVertexIndices[2];
-									*FaceVertexIndex++ = FaceVertexIndices[3];
-									
+									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][0];
+									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][1];
+									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][2];
+									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][0];
+									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][2];
+									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][3];									
 								}
 							}//End of iteration trough FaceIndex
-
-							bool BrickIsComplex = false;
-							if (BrickMaterial == 9) BrickIsComplex = true;
-							if (BrickIsComplex)
-							{
-
-								ComplexShapeBrickFactory asdf;
-								asdf.WellThenRenderTheComplexShape(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, FacesDrawn);
-							}
 						}
 					}
 				}

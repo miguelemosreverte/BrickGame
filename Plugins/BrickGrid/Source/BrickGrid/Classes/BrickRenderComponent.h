@@ -4,7 +4,6 @@
 
 #include <DynamicMeshBuilder.h>
 #include "BrickGridComponent.h"
-#include "ComplexShapeBrickFactory.h"
 #include "BrickRenderComponent.generated.h"
 
 

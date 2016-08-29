@@ -507,16 +507,18 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 										ComplexShapeBrickFactory asdf;
 										asdf.a(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, FaceVertexIndices, FaceIndex);
 									}
-
-									// Write the indices for the brick face.
-									FFaceBatch& FaceBatch = MaterialBatches[BrickMaterial].FaceBatches[FaceIndex];
-									uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
-									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][0];
-									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][1];
-									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][2];
-									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][0];
-									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][2];
-									*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][3];									
+									else
+									{
+										// Write the indices for the brick face.
+										FFaceBatch& FaceBatch = MaterialBatches[BrickMaterial].FaceBatches[FaceIndex];
+										uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(6)];
+										*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][0];
+										*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][1];
+										*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][2];
+										*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][0];
+										*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][2];
+										*FaceVertexIndex++ = FaceVertexIndices[FaceIndex][3];
+									}
 								}
 							}//End of iteration trough FaceIndex
 						}

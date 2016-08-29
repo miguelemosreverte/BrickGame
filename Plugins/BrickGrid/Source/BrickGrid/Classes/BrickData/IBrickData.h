@@ -17,20 +17,8 @@ class IBrickData
 
 	/** Use for collision */
 	virtual bool IsSolid();
-	/** Use for transluency */
-	virtual bool IsOpaque();
 	/** Use to determine rendering method (maybe replace by GetRenderType() to add support of Static Mesh) */
 	virtual bool IsComplexRender();
-   
-	/** Get Indices of the "brick" */
-	virtual TArray<uint16> GetIndices();
-	/** Get Vertices of the "brick" */
-	virtual TArray<FDynamicMeshVertex> GetVertices();
-
-private:
-	const static TArray<uint16> Indices;
-	const static TArray<FDynamicMeshVertex> Vertices;
-
-	static TArray<uint16> InitIndices();
-	static TArray<FDynamicMeshVertex> InitVertices();
+    /** Use to render your brick*/
+	virtual void Render(TArray<uint16> &VertexIndexMap, TArray<FDynamicMeshVertex> &Vertices, TArray<FMaterialBatch> &MaterialBatches, TArray<uint16> NewIndices, int FaceIndex);
 };

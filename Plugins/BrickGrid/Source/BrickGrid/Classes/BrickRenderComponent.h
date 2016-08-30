@@ -4,6 +4,7 @@
 
 #include <DynamicMeshBuilder.h>
 #include "BrickGridComponent.h"
+#include "BrickData/BrickDataRegistry.h"
 #include "BrickRenderComponent.generated.h"
 
 
@@ -34,6 +35,6 @@ public:
 	// Begin USceneComponent interface.
 	virtual FBoxSphereBounds CalcBounds(const FTransform & LocalToWorld) const override;
 	// End USceneComponent interface.
-
-	void RenderComplexBrick(TArray<uint16> &VertexIndexMap, TArray<FDynamicMeshVertex> &Vertices, TArray<FMaterialBatch> &MaterialBatches, TArray<uint16> &NewIndices, int FaceIndex);
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Chunk)
+	class UBrickDataRegistry* UBrickDataRegistry;
 };

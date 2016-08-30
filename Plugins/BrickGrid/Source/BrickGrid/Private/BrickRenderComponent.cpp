@@ -511,7 +511,9 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 										FInt3 BrickCoordinates(LocalBrickX, LocalBrickY, LocalBrickZ);
 										if (ComplexBricksIndexes.Contains(BrickCoordinates + MinLocalBrickCoordinates))
 										{
-											RenderComplexBrick(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, NewIndices, FaceIndex);
+											// If the brick is complex, let it render itself.
+											IBrickData* b = UBrickDataRegistry->GetBrickData(ComplexBricksIndexes[BrickCoordinates + MinLocalBrickCoordinates]);
+											b->Render(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, NewIndices, FaceIndex);
 										}
 										
 									}
@@ -600,73 +602,7 @@ FBoxSphereBounds UBrickRenderComponent::CalcBounds(const FTransform & LocalToWor
 	return NewBounds.TransformBy(LocalToWorld);
 }
 
-void UBrickRenderComponent::RenderComplexBrick(TArray<uint16> &VertexIndexMap, TArray<FDynamicMeshVertex> &Vertices, TArray<FMaterialBatch> &MaterialBatches, TArray<uint16> &NewIndices, int FaceIndex)
-{
-	NewIndices.AddUninitialized(4);
-	//NewIndices.AddUninitialized(UBrickDataRegistry::GetBrickData(Material)->GetIndicesNum());
-
-
-
-	//UBrickDataRegistry::GetBrickData(Material)->Build()
-	for (uint32 FaceVertexIndex = 0; FaceVertexIndex < 4; ++FaceVertexIndex)
-	{
-		const int VertexIndex = NewIndices[FaceVertexIndex];
-		const FVector Position = Vertices[VertexIndex].Position;
-		int NewVertexIndex;
-
-		/* THE CREATION OF THE STAIR*/
-
-		if (FaceIndex == 0 || FaceIndex == 1 || FaceIndex == 5 || FaceIndex == 2)
-		{
-
-			NewVertexIndex = Vertices.Num();
-			new(Vertices) FDynamicMeshVertex(Position);
-			NewIndices[4 + FaceVertexIndex] = NewVertexIndex;
-			if (FaceIndex == 5)
-			{
-				Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.5);
-			}
-			if (FaceIndex == 0 || FaceIndex == 1 || FaceIndex == 2 && (FaceVertexIndex == 2 || FaceVertexIndex == 1))
-			{
-				Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.5);
-			}
-		}
-
-
-
-
-		NewVertexIndex = Vertices.Num();
-		new(Vertices) FDynamicMeshVertex(Position);
-		NewIndices[FaceVertexIndex] = NewVertexIndex;
-
-		if (FaceIndex == 2)
-		{
-			Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.5);
-		}
-		if ((FaceIndex == 5 && (FaceVertexIndex == 0 || FaceVertexIndex == 3))
-			|| (FaceIndex == 0 && (FaceVertexIndex == 3 || FaceVertexIndex == 2))
-			|| (FaceIndex == 1 && (FaceVertexIndex == 1 || FaceVertexIndex == 0))
-			)
-			Vertices[NewVertexIndex].Position.Y += 0.5 * (0.01 / 2.5);
-
-
-
-
-	}//inside FaceVertexIndex for loop
-	FFaceBatch& FaceBatch = MaterialBatches[9].FaceBatches[FaceIndex];
-	uint16* FaceVertexIndex = &FaceBatch.Indices[FaceBatch.Indices.AddUninitialized(12)];
-	*FaceVertexIndex++ = NewIndices[0];
-	*FaceVertexIndex++ = NewIndices[1];
-	*FaceVertexIndex++ = NewIndices[2];
-	*FaceVertexIndex++ = NewIndices[0];
-	*FaceVertexIndex++ = NewIndices[2];
-	*FaceVertexIndex++ = NewIndices[3];
-	*FaceVertexIndex++ = NewIndices[4 + 0];
-	*FaceVertexIndex++ = NewIndices[4 + 1];
-	*FaceVertexIndex++ = NewIndices[4 + 2];
-	*FaceVertexIndex++ = NewIndices[4 + 0];
-	*FaceVertexIndex++ = NewIndices[4 + 2];
-	*FaceVertexIndex++ = NewIndices[4 + 3];
+	
 	// Write the indices for the brick face.
 	/*
 	FFaceBatch& FaceBatch = MaterialBatches[9].FaceBatches[FaceIndex];
@@ -684,5 +620,3 @@ void UBrickRenderComponent::RenderComplexBrick(TArray<uint16> &VertexIndexMap, T
 	*FaceVertexIndex++ = NewIndices[Index % 3 + Index % 3];
 	}
 	*/
-
-}

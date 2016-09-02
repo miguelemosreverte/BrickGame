@@ -15,6 +15,7 @@ class BRICKGRID_API UBrickRenderComponent : public UPrimitiveComponent
 
 public:
 
+	TArray<FInt3>SavedVerticesCoordinates;
 	// The coordinates of this chunk.
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category = Chunk)
 	FInt3 Coordinates;

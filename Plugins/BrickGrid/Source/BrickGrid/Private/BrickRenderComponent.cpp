@@ -222,14 +222,10 @@ public:
 
 	TArray<uint8> LocalBrickMaterials;
 
-	TMap<FInt3, uint8> ComplexBricksIndexes;
-
-	FBrickChunkSceneProxy(UBrickRenderComponent* Component, const TArray<uint8>&& InLocalBrickMaterials, TMap<FInt3, uint8> InLocalComplexBrickShapeIndex)
+	FBrickChunkSceneProxy(UBrickRenderComponent* Component, const TArray<uint8>&& InLocalBrickMaterials)
 		: FPrimitiveSceneProxy(Component)
 		, LocalBrickMaterials(InLocalBrickMaterials)
-	{
-		ComplexBricksIndexes.Append(InLocalComplexBrickShapeIndex);
-	}
+	{}
 
 	void BeginInitResources()
 	{
@@ -383,10 +379,9 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 	// Read the brick materials for all the bricks that affect this chunk.
 	const FInt3 LocalBricksDim = Grid->BricksPerRenderChunk + LocalBrickExpansion * FInt3::Scalar(2);
-	TMap<FInt3, uint8> ComplexBricksIndexesGameThread;
 	TArray<uint8> LocalBrickMaterialsGameThread;
 	LocalBrickMaterialsGameThread.SetNumUninitialized(LocalBricksDim.X * LocalBricksDim.Y * LocalBricksDim.Z);
-	Grid->GetBrickMaterialArray(MinLocalBrickCoordinates, MinLocalBrickCoordinates + LocalBricksDim - FInt3::Scalar(1), LocalBrickMaterialsGameThread, ComplexBricksIndexesGameThread);
+	Grid->GetBrickMaterialArray(MinLocalBrickCoordinates, MinLocalBrickCoordinates + LocalBricksDim - FInt3::Scalar(1), LocalBrickMaterialsGameThread);
 
 	// Check whether there are any non-empty bricks in this chunk.
 	bool HasNonEmptyBrick = false;
@@ -412,12 +407,11 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 	{
 		const ERHIFeatureLevel::Type SceneFeatureLevel = GetScene()->GetFeatureLevel();
 
-		SceneProxy = new FBrickChunkSceneProxy(this, MoveTemp(LocalBrickMaterialsGameThread), ComplexBricksIndexesGameThread);
+		SceneProxy = new FBrickChunkSceneProxy(this, MoveTemp(LocalBrickMaterialsGameThread));
 		SceneProxy->SetupCompletionEvent = FFunctionGraphTask::CreateAndDispatchWhenReady([=]()
 		{
 			const double StartTime = FPlatformTime::Seconds();
 			const TArray<uint8>& LocalBrickMaterials = SceneProxy->LocalBrickMaterials;
-			TMap<FInt3, uint8> ComplexBricksIndexes = SceneProxy->ComplexBricksIndexes;
 
 			TArray<FMaterialBatch> MaterialBatches;
 			MaterialBatches.Init(FMaterialBatch(), Grid->Parameters.Materials.Num());
@@ -506,14 +500,11 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 										NewIndices.Add(FaceVertexIndices[FaceIndex][FaceVertexIndex]);
 									}
-									if (BrickMaterial == 9)
+									bool BrickIsComplex = false;
+									if (BrickMaterial == 9) BrickIsComplex = true;
+									if (BrickIsComplex)
 									{
-										FInt3 BrickCoordinates(LocalBrickX, LocalBrickY, LocalBrickZ);
-										if (ComplexBricksIndexes.Contains(BrickCoordinates + MinLocalBrickCoordinates))
-										{
-											RenderComplexBrick(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, NewIndices, FaceIndex);
-										}
-										
+										RenderComplexBrick(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, NewIndices, FaceIndex);
 									}
 									else
 									{

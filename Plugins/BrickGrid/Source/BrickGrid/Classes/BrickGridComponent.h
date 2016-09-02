@@ -161,8 +161,6 @@ struct FBrickRegion
 
 	// Contains the occupied brick with highest Z in this region for each XY coordinate in the region. -1 means no non-empty bricks in this region at that XY.
 	TArray<int8> MaxNonEmptyBrickRegionZs;
-
-	TMap<FInt3, uint8> ComplexBricksIndexesGameThread; //From LocalBrickVertex Index or Coordinates To ShapeIndex
 };
 
 /** The parameters for a BrickGridComponent. */
@@ -244,8 +242,7 @@ public:
 	UFUNCTION(BlueprintCallable,Category = "Brick Grid")
 	FBrick GetBrick(const FInt3& BrickCoordinates) const;
 
-	void GetBrickMaterialArray(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates, TArray<uint8>& OutBrickMaterials, TMap<FInt3, uint8>& ComplexBricksIndexesGameThread) const;
-	void GetBrickMaterialArray(const FInt3& MinBrickCoordinates, const FInt3& MaxBrickCoordinates, TArray<uint8>& OutBrickMaterials) const;
+	void GetBrickMaterialArray(const FInt3& MinBrickCoordinates,const FInt3& MaxBrickCoordinates,TArray<uint8>& OutBrickMaterials) const;
 	void SetBrickMaterialArray(const FInt3& MinBrickCoordinates,const FInt3& MaxBrickCoordinates,const TArray<uint8>& BrickMaterials);
 
 	// Returns a height-map containing the non-empty brick with greatest Z for each XY in the rectangle bounded by MinBrickCoordinates.XY-MaxBrickCoordinates.XY.

@@ -5,10 +5,13 @@
 #include "BrickRenderComponent.h"
 #include "BrickCollisionComponent.h"
 #include "BrickGridComponent.h"
+#include "BrickRenderer/BrickRendererRegistry.h"
 
 void UBrickGridComponent::Init(const FBrickGridParameters& InParameters)
 {
 	Parameters = InParameters;
+
+	BrickRendererRegistry = NewObject<UBrickRendererRegistry>();
 
 	// Validate the empty material index.
 	Parameters.EmptyMaterialIndex = FMath::Clamp<int32>(Parameters.EmptyMaterialIndex, 0, Parameters.Materials.Num() - 1);
@@ -515,7 +518,7 @@ FBrickGridParameters::FBrickGridParameters()
 , MaxRegionCoordinates(+1024,+1024,0)
 , AmbientOcclusionBlurRadius(2)
 {
-	Materials.Add(FBrickMaterial());
+	Materials.Add(FBrickRender());
 }
 
 UBrickGridComponent::UBrickGridComponent(const FObjectInitializer& Initializer)

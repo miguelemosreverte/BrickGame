@@ -4,6 +4,7 @@
 #include "BrickRenderComponent.h"
 #include "BrickGridComponent.h"
 #include "BrickAmbientOcclusion.inl"
+#include "BrickRenderer/BrickRendererRegistry.h"
 
 // Maps brick corner indices to 3D coordinates.
 static FInt3 GetCornerVertexOffset(uint8 BrickVertexIndex)
@@ -17,7 +18,7 @@ static const uint8 FaceVertices[6][4] =
 	{ 4, 5, 7, 6 },		// +X
 	{ 0, 1, 5, 4 },		// -Y
 	{ 6, 7, 3, 2 },		// +Y
-	{ 4, 6, 2, 0 },	// -Z
+	{ 4, 6, 2, 0 },		// -Z
 	{ 1, 3, 7, 5 }		// +Z
 };
 // Maps face index to normal.
@@ -452,9 +453,8 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 							VertexIndexMap.Add(SceneProxy->VertexBuffer.Vertices.Num());
 							FVector Position(LocalVertexCoordinates.X, LocalVertexCoordinates.Y, LocalVertexCoordinates.Z);
-							Position.X *= 0.01 / 2.55;
-							Position.Y *= 0.01 / 2.55;
-							Position.Z *= 0.01 / 2.55;
+							//Byte buffer to float buffer
+							Position *= 1.f / 255;
 							new(SceneProxy->VertexBuffer.Vertices) FDynamicMeshVertex(Position);
 						}
 						else
@@ -477,8 +477,10 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 						const uint8 BrickMaterial = LocalBrickMaterials[LocalBrickIndex];
 						if (BrickMaterial != EmptyMaterialIndex)
 						{
-
 							uint16 FaceVertexIndices[6][4];
+							
+							TScriptInterface<IBrickRenderer> BrickRenderer = Grid->BrickRendererRegistry->GetBrickRenderer(0);
+							
 							const FInt3 RelativeBrickCoordinates = FInt3(LocalBrickX, LocalBrickY, LocalBrickZ) - LocalBrickExpansion;
 							for (uint32 FaceIndex = 0; FaceIndex < 6; ++FaceIndex)
 							{
@@ -500,11 +502,10 @@ FPrimitiveSceneProxy* UBrickRenderComponent::CreateSceneProxy()
 
 										NewIndices.Add(FaceVertexIndices[FaceIndex][FaceVertexIndex]);
 									}
-									bool BrickIsComplex = false;
-									if (BrickMaterial == 9) BrickIsComplex = true;
-									if (BrickIsComplex)
+
+									if (BrickRenderer->IsComplexBrick())
 									{
-										RenderComplexBrick(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, NewIndices, FaceIndex);
+										BrickRenderer->Render(VertexIndexMap, SceneProxy->VertexBuffer.Vertices, MaterialBatches, NewIndices, FaceIndex);
 									}
 									else
 									{

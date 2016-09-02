@@ -26,9 +26,18 @@ inline int32 SignedShiftRight(int32 A,int32 B)
 	#endif
 }
 
+UENUM(BlueprintType)
+enum class EBrickRenderType : uint8
+{
+	Brick,
+	Stairs,
+	Fence,
+	Glass
+};
+
 /** Information about a brick material. */
 USTRUCT(BlueprintType)
-struct FBrickMaterial
+struct FBrickRender
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -38,7 +47,10 @@ struct FBrickMaterial
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category = Bricks)
 	class UMaterialInterface* OverrideTopSurfaceMaterial;
 
-	FBrickMaterial() : SurfaceMaterial(NULL), OverrideTopSurfaceMaterial(NULL) {}
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Bricks)
+	EBrickRenderType BrickRenderType;
+
+	FBrickRender() : SurfaceMaterial(NULL), OverrideTopSurfaceMaterial(NULL) {}
 };
 
 /** Information about a brick. */
@@ -171,7 +183,7 @@ struct FBrickGridParameters
 
 	// The materials to render for each brick material.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Materials)
-	TArray<FBrickMaterial> Materials;
+	TArray<FBrickRender> Materials;
 
 	// The material index that means "empty".
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Materials)
@@ -261,6 +273,10 @@ public:
 	// Updates the visible chunks for a given view position.
 	UFUNCTION(BlueprintCallable,Category = "Brick Grid")
 	void Update(const FVector& WorldViewPosition,float MaxDrawDistance,float MaxCollisionDistance,float MaxDesiredUpdateTime,FBrickGrid_InitRegion InitRegion);
+
+	// Registry which all renderers are store (maybe use Game Instance in futur update)
+	UPROPERTY()
+	class UBrickRendererRegistry* BrickRendererRegistry;
 
 	// The parameters for the grid.
 	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category = "Brick Grid")

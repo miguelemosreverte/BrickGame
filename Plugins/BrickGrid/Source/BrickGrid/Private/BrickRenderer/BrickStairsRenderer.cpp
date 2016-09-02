@@ -1,19 +1,19 @@
 
 
 #include "BrickGridPluginPrivatePCH.h"
-#include "BrickData/BrickStairs.h"
+#include "BrickRenderer/BrickStairsRenderer.h"
 
-bool UBrickStairs::IsSolid()
+bool UBrickStairsRenderer::IsSolid()
 {
 	return true;
 }
 
-bool UBrickStairs::IsComplexRender()
+bool UBrickStairsRenderer::IsComplexBrick()
 {
 	return true;
 }
 
-void UBrickStairs::Render(TArray<uint16>& VertexIndexMap, TArray<FDynamicMeshVertex>& Vertices, TArray<FMaterialBatch>& MaterialBatches, TArray<uint16> NewIndices, int FaceIndex)
+void UBrickStairsRenderer::Render(TArray<uint16>& VertexIndexMap, TArray<FDynamicMeshVertex>& Vertices, TArray<FMaterialBatch>& MaterialBatches, TArray<uint16> NewIndices, int FaceIndex)
 {
 	NewIndices.AddUninitialized(6);
 	//uint16 FaceVertexIndices[8] = { 0 };
@@ -43,10 +43,6 @@ void UBrickStairs::Render(TArray<uint16>& VertexIndexMap, TArray<FDynamicMeshVer
 				Vertices[NewVertexIndex].Position.Z -= 0.5 * (0.01 / 2.5);
 			}
 		}
-
-
-
-
 
 		NewVertexIndex = Vertices.Num();
 		new(Vertices) FDynamicMeshVertex(Position);

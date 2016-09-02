@@ -224,7 +224,7 @@ public:
 
 	TMap<FInt3, uint8> ComplexBricksIndexes;
 
-	FBrickChunkSceneProxy(UBrickRenderComponent* Component, const TArray<uint8>&& InLocalBrickMaterials, TMap<FInt3, uint8> &InLocalComplexBrickShapeIndex)
+	FBrickChunkSceneProxy(UBrickRenderComponent* Component, const TArray<uint8>&& InLocalBrickMaterials, TMap<FInt3, uint8> InLocalComplexBrickShapeIndex)
 		: FPrimitiveSceneProxy(Component)
 		, LocalBrickMaterials(InLocalBrickMaterials)
 	{
